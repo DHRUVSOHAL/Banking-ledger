@@ -39,15 +39,29 @@ const sendEmail = async (to, subject, text, html) => {
   }
 };
 
-async function sendRegistrationEmail(userEmail,name){
-    const subject = 'Welcome to Banking-Ledger!';
-    const text = `Dear ${name},\n\nThank you for registering with Banking-Ledger. We are excited to have you on board!\n\nBest regards,\nThe Banking-Ledger Team`;
-    const html = `<p>Dear ${name},</p><p>Thank you for registering with Banking-Ledger. We are excited to have you on board!</p><p>Best regards,<br>The Banking-Ledger Team</p>`;
-    await sendEmail(userEmail, subject, text, html);
+async function sendRegistrationEmail(userEmail, name) {
+  const subject = 'Welcome to Banking-Ledger!';
+  const text = `Dear ${name},\n\nThank you for registering with Banking-Ledger. We are excited to have you on board!\n\nBest regards,\nThe Banking-Ledger Team`;
+  const html = `<p>Dear ${name},</p><p>Thank you for registering with Banking-Ledger. We are excited to have you on board!</p><p>Best regards,<br>The Banking-Ledger Team</p>`;
+  await sendEmail(userEmail, subject, text, html);
 }
 
+async function sendTransectionEmail(userEmail, name, amount, toAccount) {
+  const subject = 'Transection Successfully';
+  const text = `Hello ${name},\n\n Your transection of INR${amount} to account ${toAccount} was successfully made.......Regards BANKING-LEDGER`;
+  const html = `<p>Hello ${name},</p><p>\n\n Your transection of INR${amount} to account ${toAccount} was successfully made</p><p>.......Regards BANKING-LEDGER</p>`;
+  await sendEmail(userEmail, subject, text, html);
+}
 
+async function sendTransectionFailureEmail(userEmail, name, amount, toAccount) {
+  const subject = 'Transection Failed';
+  const text = `Hello ${name},\n\n Your transection of INR${amount} to account ${toAccount} was FAILED.......Regards BANKING-LEDGER`;
+  const html = `<p>Hello ${name},</p><p>\n\n Your transection of INR${amount} to account ${toAccount} was <b> FAILED</b></p><p>.......Regards BANKING-LEDGER</p>`;
+  await sendEmail(userEmail, subject, text, html);
+}
 
-module.exports ={
-    sendRegistrationEmail
+module.exports = {
+  sendRegistrationEmail,
+  sendTransectionEmail,
+  sendTransectionFailureEmail
 };
