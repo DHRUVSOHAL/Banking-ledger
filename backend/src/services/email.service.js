@@ -46,10 +46,16 @@ async function sendRegistrationEmail(userEmail, name) {
   await sendEmail(userEmail, subject, text, html);
 }
 
-async function sendTransectionEmail(userEmail, name, amount, toAccount) {
+async function senderTransectionEmail(userEmail, name, amount, toAccount) {
   const subject = 'Transection Successfully';
   const text = `Hello ${name},\n\n Your transection of INR${amount} to account ${toAccount} was successfully made.......Regards BANKING-LEDGER`;
   const html = `<p>Hello ${name},</p><p>\n\n Your transection of INR${amount} to account ${toAccount} was successfully made</p><p>.......Regards BANKING-LEDGER</p>`;
+  await sendEmail(userEmail, subject, text, html);
+}
+async function receiverTransectionEmail(userEmail, name, amount, fromAccount) {
+  const subject = 'Transection Received';
+  const text = `Hello ${name},\n\n You have received INR${amount} from account ${fromAccount}.......Regards BANKING-LEDGER`;
+  const html = `<p>Hello ${name},</p><p>\n\n You have received INR${amount} from account ${fromAccount}</p><p>.......Regards BANKING-LEDGER</p>`;
   await sendEmail(userEmail, subject, text, html);
 }
 
@@ -62,6 +68,7 @@ async function sendTransectionFailureEmail(userEmail, name, amount, toAccount) {
 
 module.exports = {
   sendRegistrationEmail,
-  sendTransectionEmail,
+  senderTransectionEmail,
+  receiverTransectionEmail,
   sendTransectionFailureEmail
 };
