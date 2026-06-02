@@ -16,6 +16,11 @@ const router=express.Router();
 
 router.post("/",authMiddleware.authMiddleware,accountController.createAccount)
 
+/**
+ * @route GET /api/accounts/
+ * @description get all account of logged in user
+ */
+router.get('/',authMiddleware.authMiddleware,accountController.getAUserAccountsOfUser)
 
 
 

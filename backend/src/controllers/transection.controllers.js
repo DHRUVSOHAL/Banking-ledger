@@ -1,11 +1,11 @@
-const transectionModel=require('../models/transection.model.js')
+const transectionModel = require('../models/transection.model.js')
 
 
-const ledgerModel=require('../models/ledger.model.js')
+const ledgerModel = require('../models/ledger.model.js')
 
-const emailService=require('../services/email.service.js')
-const accountModel=require('../models/account.model.js')
-const mongoose=require('mongoose')
+const emailService = require('../services/email.service.js')
+const accountModel = require('../models/account.model.js')
+const mongoose = require('mongoose')
 /**
  * create a new transection
  * The 10 steps TRANSFER flow:
@@ -22,63 +22,118 @@ const mongoose=require('mongoose')
  */
 
 
-async function createTransection(req,res){
-    const {fromAccount,toAccount,amount,idempotencyKey}=req.body;
-    if(!fromAccount || !toAccount || !amount || !idempotencyKey){
-        return res.status(400).json({message:'All fields are required'})
+async function createTransection(req, res) {
+    const { fromAccount, toAccount, amount, idempotencyKey } = req.body;
+    if (!fromAccount || !toAccount || !amount || !idempotencyKey) {
+        return res.status(400).json({ message: 'All fields are required' })
     }
 }
-async function createInitialFundsTransection(req,res){
-    const {toAccount,amount,idempotencyKey}=req.body;
-    if(!toAccount || !amount || !idempotencyKey){
-        return res.status(400).json({message:'All fields are required'})
-    }
-    const toUserAccount=await accountModel.findOne({_id: toAccount})
-    if(!toUserAccount){
-        return res.status(404).json({message:'toAccount not found'})
-    }
+async function createInitialFundsTransection(req, res) {
+    const { toAccount, amount, idempotencyKey } = req.body;
 
-    const fromUserAccount=await accountModel.findOne({systemUser:true,user:req.user._id})
-    if(!fromUserAccount){
-        return res.status(404).json({message:'System account not found for this user'})
+    if (!toAccount || !idempotencyKey || !amount || amount <= 0) {
+        return res.status(400).json({
+            message: "Valid toAccount, amount and idempotencyKey are required"
+        });
     }
 
-    const session=await mongoose.startSession();
-    const transection=await transectionModel.create({
-        fromAccount:fromUserAccount._id,
-        toAccount:toUserAccount._id,
-        amount,
-        idempotencyKey,
-        status:"PENDING"
-    },{session})
-    const debitLedgerEntry=await ledgerModel.create({
-        account:fromUserAccount._id,
-        transection:transection._id,
-        amount:-amount,
-        type:"DEBIT"
-    },{session})
+    const session = await mongoose.startSession();
 
-    const creditLedgerEntry=await ledgerModel.create({
-        account:toUserAccount._id,
-        transection:transection._id,
-        amount:amount,
-        type:"CREDIT"
-    },{session})
-    transection.status="COMPLETED"
-    await transection.save({session})
-    await session.commitTransaction();
-    session.endSession();
-    return res.status(201).json({
-        message:"Initial fund transection created successfully",
-        transectionId:transection._id   
-    })
+    try {
+        session.startTransaction();
 
+        // Check idempotency
+        const existingTransection = await transectionModel.findOne({
+            idempotencyKey
+        });
+
+        if (existingTransection) {
+            await session.abortTransaction();
+            return res.status(409).json({
+                message: "Transaction already processed"
+            });
+        }
+
+        // Find recipient account
+        const toUserAccount = await accountModel.findById(toAccount);
+
+        if (!toUserAccount) {
+            await session.abortTransaction();
+            return res.status(404).json({
+                message: "toAccount not found"
+            });
+        }
+
+        // Find system account
+        const fromUserAccount = await accountModel.findOne({
+          
+            user: req.user._id
+        });
+
+        if (!fromUserAccount) {
+            await session.abortTransaction();
+            return res.status(404).json({
+                message: "System account not found"
+            });
+        }
+
+        // Create transaction
+        const [transection] = await transectionModel.create(
+            [{
+                fromAccount: fromUserAccount._id,
+                toAccount: toUserAccount._id,
+                amount,
+                idempotencyKey,
+                status: "Pending"
+            }],
+            { session }
+        );
+
+        // Debit entry
+        await ledgerModel.create(
+            [{
+                account: fromUserAccount._id,
+                transection: transection._id,
+                amount: -amount,
+                type: "DEBIT"
+            }],
+            { session }
+        );
+
+        // Credit entry
+        await ledgerModel.create(
+            [{
+                account: toUserAccount._id,
+                transection: transection._id,
+                amount: amount,
+                type: "CREDIT"
+            }],
+            { session }
+        );
+
+        // Mark completed
+        transection.status = "Completed";
+        await transection.save({ session });
+
+        await session.commitTransaction();
+
+        return res.status(201).json({
+            message: "Initial fund transection created successfully",
+            transectionId: transection._id
+        });
+
+    } catch (error) {
+        await session.abortTransaction();
+
+        return res.status(500).json({
+            message: error.message
+        });
+    } finally {
+        session.endSession();
+    }
 }
 
-
-
-
-module.exports={
+module.exports = {
     createTransection,
     createInitialFundsTransection
 }
