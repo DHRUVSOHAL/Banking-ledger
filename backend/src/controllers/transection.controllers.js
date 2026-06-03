@@ -71,81 +71,96 @@ async function createTransection(req, res) {
     if (fromUserAccount.status !== "ACTIVE" || toUserAccount.status !== "ACTIVE") {
         return res.status(400).json({ message: "Both accounts must be active for transection" })
     }
-    const fromUser=await userModel.findById(fromUserAccount.user);
-    const toUser=await userModel.findById(toUserAccount.user);
+    const fromUser = await userModel.findById(fromUserAccount.user);
+    const toUser = await userModel.findById(toUserAccount.user);
     /**
      * checking sender balance from ledger
      */
-    const ballance = await fromUserAccount.getBalance();
-    if (ballance < amount) {
-        return res.status(400).json({ message: `Balance is insufficient for this transection. Current balance is ${ballance}` })
+    const balance = await fromUserAccount.getBalance();
+    if (balance < amount) {
+        return res.status(400).json({ message: `Balance is insufficient for this transection. Current balance is ${balance}` })
     }
-    /**
-     * creating transection
-     */
-    const session = await mongoose.startSession();
-    session.startTransaction()
-
-    const [transection] = await transectionModel.create(
-        [{
-            fromAccount,
-            toAccount,
-            amount,
-            idempotencyKey,
-            status: "Pending"
-        }],
-        { session }
-    );
-    if (fromAccount === toAccount) {
-        return res.status(400).json({
-            message: "Cannot transfer to same account"
-        });
-    }
-    await ledgerModel.create(
-        [{
-            account: fromAccount,
-            transection: transection._id,
-            amount: amount,
-            type: "DEBIT"
-        }],
-        { session }
-    );
-
-    await ledgerModel.create(
-        [{
-            account: toAccount,
-            transection: transection._id,
-            amount: amount,
-            type: "CREDIT"
-        }],
-        { session }
-    );
-
-    transection.status = "Completed"
-    await transection.save({ session })
-    await session.commitTransaction()
-    session.endSession()
-
-    /**
-     * sending email notification to sender and receiver about transection
-     */
-
-
+    let transection;
     try {
-        await emailService.senderTransectionEmail(fromUser.email, fromUser.name, amount, toAccount);
-        await emailService.receiverTransectionEmail(toUser.email, toUser.name, amount, fromAccount);
+        /**
+         * creating transection
+         */
+
+        const session = await mongoose.startSession();
+        session.startTransaction()
+
+        const [transection] = await transectionModel.create(
+            [{
+                fromAccount,
+                toAccount,
+                amount,
+                idempotencyKey,
+                status: "Pending"
+            }],
+            { session }
+        );
+        if (fromAccount === toAccount) {
+            return res.status(400).json({
+                message: "Cannot transfer to same account"
+            });
+        }
+        await ledgerModel.create(
+            [{
+                account: fromAccount,
+                transection: transection._id,
+                amount: amount,
+                type: "DEBIT"
+            }],
+            { session }
+        );
+        await (() => {
+            return new Promise((resolve) => setTimeout(resolve, 10 * 1000));
+        })
+
+        await ledgerModel.create(
+            [{
+                account: toAccount,
+                transection: transection._id,
+                amount: amount,
+                type: "CREDIT"
+            }],
+            { session }
+        );
+        await transectionModel.findByIdAndUpdate(transection._id, { status: "Completed" }, { session })
+        await transection.save({ session })
+        await session.commitTransaction()
+        session.endSession()
     } catch (err) {
-        console.error("Email error:", err);
+        emailService.transectionFailureEmail(fromUser.email, fromUser.name, amount, toAccount).catch((err) => {
+            console.error("Email error:", err);
+        })
+
+        return res.status(400).json({
+            message: "Transection failed",
+
+        })
+
+        /**
+         * sending email notification to sender and receiver about transection
+         */
+
+
+        try {
+            await emailService.senderTransectionEmail(fromUser.email, fromUser.name, amount, toAccount);
+            await emailService.receiverTransectionEmail(toUser.email, toUser.name, amount, fromAccount);
+        } catch (err) {
+            console.error("Email error:", err);
+        }
+
+        res.status(201).json({
+            message: "Transection completed successfully",
+            transectionId: transection
+        })
+
+
+
+
     }
-
-    res.status(201).json({
-        message: "Transection completed successfully",
-        transectionId: transection
-    })
-
-
-
-
 }
 
 

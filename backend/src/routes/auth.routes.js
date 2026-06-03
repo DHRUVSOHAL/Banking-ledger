@@ -19,6 +19,11 @@ router.post("/register",authController.userRegisterController)
 
 router.post("/login",authController.userLoginController)
 
+/**
+ * POST:/api/auth/logout
+ * @description:Logout user by blacklisting the token
+ */
 
+router.post("/logout",authController.userLogoutController)
 
 module.exports=router

@@ -1,7 +1,7 @@
 const userModel = require('../models/user.model')
 const jwt = require('jsonwebtoken')
 const emailService=require('../services/email.service.js')
-
+const blackListModel=require('../models/blackList.model.js')
 
 /**
  * @description:Register a new user
@@ -83,9 +83,28 @@ async function userLoginController(req,res){
     })
 }
 
+async function userLogoutController(req,res){
+    const token=req.cookies.token || req.headers.authorization?.split(" ")[1]
+
+    if(!token){
+        return res.status(400).json({
+            message:"No token found in cookies"
+        })
+    }
+    res.cookie("token","")
+    await blackListModel.create({token})
+    
+    return res.status(200).json({
+        message:"user logged out successfully",
+        status:"success"
+    })
+
+}
+
 
 
 module.exports = {
     userRegisterController,
-    userLoginController
+    userLoginController,
+    userLogoutController
 }

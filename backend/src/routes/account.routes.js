@@ -22,6 +22,13 @@ router.post("/",authMiddleware.authMiddleware,accountController.createAccount)
  */
 router.get('/',authMiddleware.authMiddleware,accountController.getAUserAccountsOfUser)
 
+/**
+ * @GET /api/accounts/balance/:accountId
+ * @description get balance of an account
+ * protected route, requires authentication
+ */
+router.get('/balance/:accountId',authMiddleware.authMiddleware,accountController.getAccountBalance)
+
 
 
 
