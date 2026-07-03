@@ -1,68 +1,70 @@
 require('dotenv').config();
-const nodemailer = require('nodemailer');
+const { Resend } = require('resend');
 
-const transporter = nodemailer.createTransport({//smtp serves se baat krta hai for handeling emails
-  service: 'gmail',
-  auth: {
-    type: 'OAuth2',
-    user: process.env.EMAIL_USER,
-    clientId: process.env.CLIENT_ID,
-    clientSecret: process.env.CLIENT_SECRET,
-    refreshToken: process.env.REFRESH_TOKEN,
-  },
-});
+// Initialize Resend with API Key
+const resend = new Resend(process.env.RESEND_API_KEY);
 
-// Verify the connection configuration
-transporter.verify((error, success) => {
-  if (error) {
-    console.error('Error connecting to email server:', error);
-  } else {
-    console.log('Email server is ready to send messages');
-  }
-});
-
-// Function to send email
+// Generic function to send email via Resend
 const sendEmail = async (to, subject, text, html) => {
   try {
-    const info = await transporter.sendMail({
-      from: `"BANKING-LEDGER" <${process.env.EMAIL_USER}>`, // sender address
-      to, // list of receivers
-      subject, // Subject line
-      text, // plain text body
-      html, // html body
+    const { data, error } = await resend.emails.send({
+      // NOTE: Agar domain verified nahi hai, to sirf "onboarding@resend.dev" se bhej sakte ho testing ke liye.
+      // Domain verify hone ke baad: "no-reply@yourdomain.com" ya `"BANKING-LEDGER" <support@yourdomain.com>` use kar sakte ho.
+      from: process.env.EMAIL_FROM || 'onboarding@resend.dev', 
+      to: [to], // Resend expects an array or string
+      subject: subject,
+      text: text,
+      html: html,
     });
 
-    console.log('Message sent: %s', info.messageId);
-    console.log('Preview URL: %s', nodemailer.getTestMessageUrl(info));
+    if (error) {
+      console.error('Resend Error:', error);
+      return;
+    }
+
+    console.log('Email sent successfully via Resend. ID:', data.id);
   } catch (error) {
-    console.error('Error sending email:', error);
+    console.error('Unexpected error sending email:', error);
   }
 };
 
+// 1. Registration Email
 async function sendRegistrationEmail(userEmail, name) {
   const subject = 'Welcome to Banking-Ledger!';
   const text = `Dear ${name},\n\nThank you for registering with Banking-Ledger. We are excited to have you on board!\n\nBest regards,\nThe Banking-Ledger Team`;
-  const html = `<p>Dear ${name},</p><p>Thank you for registering with Banking-Ledger. We are excited to have you on board!</p><p>Best regards,<br>The Banking-Ledger Team</p>`;
+  const html = `<p>Dear <strong>${name}</strong>,</p>
+                <p>Thank you for registering with Banking-Ledger. We are excited to have you on board!</p>
+                <p>Best regards,<br>The Banking-Ledger Team</p>`;
   await sendEmail(userEmail, subject, text, html);
 }
 
+// 2. Sender Transaction Success Email
 async function senderTransectionEmail(userEmail, name, amount, toAccount) {
-  const subject = 'Transection Successfully';
-  const text = `Hello ${name},\n\n Your transection of INR${amount} to account ${toAccount} was successfully made.......Regards BANKING-LEDGER`;
-  const html = `<p>Hello ${name},</p><p>\n\n Your transection of INR${amount} to account ${toAccount} was successfully made</p><p>.......Regards BANKING-LEDGER</p>`;
-  await sendEmail(userEmail, subject, text, html);
-}
-async function receiverTransectionEmail(userEmail, name, amount, fromAccount) {
-  const subject = 'Transection Received';
-  const text = `Hello ${name},\n\n You have received INR${amount} from account ${fromAccount}.......Regards BANKING-LEDGER`;
-  const html = `<p>Hello ${name},</p><p>\n\n You have received INR${amount} from account ${fromAccount}</p><p>.......Regards BANKING-LEDGER</p>`;
+  const subject = 'Transaction Successful';
+  const text = `Hello ${name},\n\nYour transaction of INR ${amount} to account ${toAccount} was successfully made.\n\nRegards,\nBANKING-LEDGER`;
+  const html = `<p>Hello <strong>${name}</strong>,</p>
+                <p>Your transaction of <strong>INR ${amount}</strong> to account <strong>${toAccount}</strong> was successfully made.</p>
+                <p>Regards,<br>BANKING-LEDGER</p>`;
   await sendEmail(userEmail, subject, text, html);
 }
 
+// 3. Receiver Transaction Success Email
+async function receiverTransectionEmail(userEmail, name, amount, fromAccount) {
+  const subject = 'Transaction Received';
+  const text = `Hello ${name},\n\nYou have received INR ${amount} from account ${fromAccount}.\n\nRegards,\nBANKING-LEDGER`;
+  const html = `<p>Hello <strong>${name}</strong>,</p>
+                <p>You have received <strong>INR ${amount}</strong> from account <strong>${fromAccount}</strong>.</p>
+                <p>Regards,<br>BANKING-LEDGER</p>`;
+  await sendEmail(userEmail, subject, text, html);
+}
+
+// 4. Transaction Failure Email
 async function sendTransectionFailureEmail(userEmail, name, amount, toAccount) {
-  const subject = 'Transection Failed';
-  const text = `Hello ${name},\n\n Your transection of INR${amount} to account ${toAccount} was FAILED.......Regards BANKING-LEDGER`;
-  const html = `<p>Hello ${name},</p><p>\n\n Your transection of INR${amount} to account ${toAccount} was <b> FAILED</b></p><p>.......Regards BANKING-LEDGER</p>`;
+  const subject = 'Transaction Failed';
+  const text = `Hello ${name},\n\nYour transaction of INR ${amount} to account ${toAccount} has FAILED.\n\nRegards,\nBANKING-LEDGER`;
+  const html = `<p>Hello <strong>${name}</strong>,</p>
+                <p>Your transaction of <strong>INR ${amount}</strong> to account <strong>${toAccount}</strong> has <span style="color: red; font-weight: bold;">FAILED</span>.</p>
+                <p>Regards,<br>BANKING-LEDGER</p>`;
   await sendEmail(userEmail, subject, text, html);
 }
 
