@@ -46,7 +46,7 @@ export default function About() {
   }, []);
 
   return (
-    <div className="max-w-2xl select-text animate-fade-in">
+    <div className="max-w-md mx-auto min-h-screen flex flex-col justify-center px-4 select-text">
       {/* Heading Section */}
       <h1 className="text-5xl font-bold text-zinc-900 mb-4 tracking-tight min-h-[40px] flex items-center">
         {displayedHeading}
