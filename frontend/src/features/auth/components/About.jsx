@@ -35,7 +35,7 @@ export default function About() {
           } else {
             clearInterval(paragraphTimer);
           }
-        }, 20); // Fast typing for paragraph
+        }, 5); // Fast typing for paragraph
       }
     }, 60); // Heading typing speed
 
@@ -48,7 +48,7 @@ export default function About() {
   return (
     <div className="max-w-md mx-auto min-h-screen flex flex-col justify-center px-4 select-text">
       {/* Heading Section */}
-      <h1 className="text-5xl font-bold text-zinc-900 mb-4 tracking-tight min-h-[40px] flex items-center">
+      <h1 className="text-5xl font-bold text-white mb-4 tracking-tight min-h-[40px] flex items-center">
         {displayedHeading}
         {displayedHeading.length < headingText.length && (
           <span className="animate-pulse bg-zinc-900 ml-1 inline-block w-0.5 h-7"></span>
@@ -56,7 +56,7 @@ export default function About() {
       </h1>
 
       {/* Paragraph Section */}
-      <p className="text-zinc-600 leading-relaxed text-base font-normal min-h-[120px]">
+      <p className="text-white leading-relaxed text-base font-normal min-h-[120px]">
         {displayedParagraph}
         {displayedHeading.length === headingText.length && displayedParagraph.length < paragraphText.length && (
           <span className="animate-pulse bg-zinc-500 ml-0.5 inline-block w-0.5 h-4"></span>
