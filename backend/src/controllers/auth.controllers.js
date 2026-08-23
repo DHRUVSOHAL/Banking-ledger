@@ -3,6 +3,8 @@ const jwt = require('jsonwebtoken')
 const emailService=require('../services/email.service.js')
 const blackListModel=require('../models/blackList.model.js')
 const otpModel = require("../models/Otp.model")
+const crypto = require('crypto')
+const bcrypt = require('bcrypt') // ya bcryptjs, jo bhi tumne install kiya hai
 
 /**
  * @description:Register a new user
@@ -29,7 +31,7 @@ async function userRegisterController(req, res) {
         name,
         password
     })
-    const token = jwt.sign({ userId: user._id }, process.env.JWT_SECRET_KEY, { expiresIn: "1d" })
+    const token = jwt.sign({ userId: user._id }, process.env.JWT_SECRET, { expiresIn: "1d" })
     res.cookie("token", token)
     res.status(201).json({
         message: "user registered successfully",
@@ -321,11 +323,11 @@ async function resetPassword(req, res) {
         });
     }
 }
-
-
-
 module.exports = {
     userRegisterController,
     userLoginController,
-    userLogoutController
+    userLogoutController,
+    forgetPassword,
+    verifyOtp,
+    resetPassword
 }

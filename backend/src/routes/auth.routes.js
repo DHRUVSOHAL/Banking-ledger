@@ -26,8 +26,8 @@ router.post("/login",authController.userLoginController)
 
 router.post("/logout",authController.userLogoutController)
 
-router.post("/forget-password",authController.forgetPasswordController)
-router.post("/verify-otp",authController.verifyOtpController)
-router.post("/reset-password",authController.resetPasswordController)
+router.post("/forget-password",authController.forgetPassword)
+router.post("/verify-otp",authController.verifyOtp)
+router.post("/reset-password",authController.resetPassword)
 
 module.exports=router

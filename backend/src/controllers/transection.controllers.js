@@ -80,7 +80,6 @@ async function createTransection(req, res) {
     if (balance < amount) {
         return res.status(400).json({ message: `Balance is insufficient for this transection. Current balance is ${balance}` })
     }
-    let transection;
     try {
         /**
          * creating transection
@@ -100,6 +99,8 @@ async function createTransection(req, res) {
             { session }
         );
         if (fromAccount === toAccount) {
+            await session.abortTransaction();
+            session.endSession();
             return res.status(400).json({
                 message: "Cannot transfer to same account"
             });
@@ -113,9 +114,6 @@ async function createTransection(req, res) {
             }],
             { session }
         );
-        await (() => {
-            return new Promise((resolve) => setTimeout(resolve, 10 * 1000));
-        })
 
         await ledgerModel.create(
             [{
@@ -127,39 +125,30 @@ async function createTransection(req, res) {
             { session }
         );
         await transectionModel.findByIdAndUpdate(transection._id, { status: "Completed" }, { session })
-        await transection.save({ session })
         await session.commitTransaction()
         session.endSession()
-    } catch (err) {
-        emailService.transectionFailureEmail(fromUser.email, fromUser.name, amount, toAccount).catch((err) => {
-            console.error("Email error:", err);
-        })
-
-        return res.status(400).json({
-            message: "Transection failed",
-
-        })
-
-        /**
-         * sending email notification to sender and receiver about transection
-         */
-
 
         try {
             await emailService.senderTransectionEmail(fromUser.email, fromUser.name, amount, toAccount);
             await emailService.receiverTransectionEmail(toUser.email, toUser.name, amount, fromAccount);
-        } catch (err) {
-            console.error("Email error:", err);
+        } catch (emailErr) {
+            console.error("Email error:", emailErr);
         }
 
-        res.status(201).json({
+        return res.status(201).json({
             message: "Transection completed successfully",
-            transectionId: transection
+            transectionId: transection._id
         })
 
+    } catch (err) {
+        console.error("Transaction error:", err);
+        emailService.sendTransectionFailureEmail(fromUser.email, fromUser.name, amount, toAccount).catch((emailErr) => {
+            console.error("Email error:", emailErr);
+        })
 
-
-
+        return res.status(400).json({
+            message: "Transection failed",
+        })
     }
 }
 

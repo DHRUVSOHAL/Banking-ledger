@@ -68,9 +68,21 @@ async function sendTransectionFailureEmail(userEmail, name, amount, toAccount) {
   await sendEmail(userEmail, subject, text, html);
 }
 
+// 5. OTP Email (for forget-password flow)
+async function sendOTPEmail(userEmail, otp) {
+  const subject = 'Your OTP for Password Reset';
+  const text = `Your OTP for password reset is: ${otp}\n\nThis OTP is valid for 10 minutes. Do not share it with anyone.\n\nRegards,\nBANKING-LEDGER`;
+  const html = `<p>Your OTP for password reset is:</p>
+                <h2 style="letter-spacing: 4px;">${otp}</h2>
+                <p>This OTP is valid for <strong>10 minutes</strong>. Do not share it with anyone.</p>
+                <p>Regards,<br>BANKING-LEDGER</p>`;
+  await sendEmail(userEmail, subject, text, html);
+}
+
 module.exports = {
   sendRegistrationEmail,
   senderTransectionEmail,
   receiverTransectionEmail,
-  sendTransectionFailureEmail
+  sendTransectionFailureEmail,
+  sendOTPEmail
 };
