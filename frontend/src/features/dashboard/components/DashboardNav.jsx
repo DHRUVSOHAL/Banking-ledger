@@ -31,6 +31,19 @@ export default function DashboardNav() {
                 {label}
               </Link>
             ))}
+
+            {user?.systemUser && (
+              <Link
+                to="/admin/deposits"
+                className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
+                  location.pathname === '/admin/deposits'
+                    ? 'bg-blue-600 text-white'
+                    : 'text-zinc-400 hover:text-white hover:bg-zinc-800'
+                }`}
+              >
+                Admin Panel
+              </Link>
+            )}
           </nav>
         </div>
         <div className="flex items-center gap-3">

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { getAccounts } from '../../../api/accounts';
+import { accountsService } from '../../../service/accounts.service';
 import LoadingSpinner from '../../../components/LoadingSpinner';
 import DashboardNav from '../components/DashboardNav';
 import AccountCard from '../components/AccountCard';
@@ -14,10 +14,10 @@ export default function Dashboard() {
     setLoading(true);
     setError('');
     try {
-      const data = await getAccounts();
-      setAccounts(data.accounts || []);
+      const res = await accountsService.getAccounts(); // 👈 changed
+      setAccounts(res.data.accounts || []);            // 👈 res.data because axios wraps response
     } catch (err) {
-      setError(err.message);
+      setError(err?.response?.data?.message || err.message); // 👈 changed
     } finally {
       setLoading(false);
     }

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
-import { getAccountBalance } from '../../../api/accounts';
+import { accountsService } from '../../../service/accounts.service';
 import LoadingSpinner from '../../../components/LoadingSpinner';
+import DepositButton from './DepositButton';
 
 function formatCurrency(amount, currency = 'INR') {
   return new Intl.NumberFormat('en-IN', { style: 'currency', currency }).format(amount);
@@ -15,23 +16,17 @@ export default function AccountCard({ account }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
-  useEffect(() => {
-    let cancelled = false;
+  function fetchBalance() {
     setLoading(true);
     setError('');
+    accountsService.getAccountBalance(account._id)
+      .then((res) => setBalance(res.data.balance))
+      .catch((err) => setError(err?.response?.data?.message || err.message))
+      .finally(() => setLoading(false));
+  }
 
-    getAccountBalance(account._id)
-      .then((data) => {
-        if (!cancelled) setBalance(data.balance);
-      })
-      .catch((err) => {
-        if (!cancelled) setError(err.message);
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
-
-    return () => { cancelled = true; };
+  useEffect(() => {
+    fetchBalance();
   }, [account._id]);
 
   const statusColor = {
@@ -70,6 +65,8 @@ export default function AccountCard({ account }) {
       >
         Copy account ID
       </button>
+
+      <DepositButton accountId={account._id} onDeposited={fetchBalance} />
     </div>
   );
 }

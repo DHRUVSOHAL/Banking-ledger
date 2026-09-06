@@ -21,7 +21,7 @@ async function authMiddleware(req, res, next) {
         })
     }
     try {
-        const decode = jwt.verify(token, process.env.JWT_SECRET_KEY)//have userId
+        const decode = jwt.verify(token, process.env.JWT_SECRET)//have userId
 
         const user = await userModel.findById(decode.userId)//to check if user exist or not
 
@@ -54,7 +54,7 @@ async function authSystemUserMiddleware(req, res, next) {
         })
     }
     try {
-        const decode = jwt.verify(token, process.env.JWT_SECRET_KEY)//have userId
+        const decode = jwt.verify(token, process.env.JWT_SECRET)//have userId
         const user = await userModel.findById(decode.userId).select("+systemUser")//to check if user exist or not and also get systemUser field
         if (!user || !user.systemUser) {
             return res.status(403).json({

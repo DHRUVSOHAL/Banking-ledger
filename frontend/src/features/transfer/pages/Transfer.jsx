@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { getAccounts } from '../../../api/accounts';
-import { createTransfer } from '../../../api/transactions';
+import { accountsService } from '../../../service/accounts.service';
+import { transactionsService } from '../../../service/transactions.service';
 import LoadingSpinner from '../../../components/LoadingSpinner';
 import DashboardNav from '../../dashboard/components/DashboardNav';
 
@@ -19,12 +19,12 @@ export default function Transfer() {
   const fetchAccounts = useCallback(async () => {
     setLoadingAccounts(true);
     try {
-      const data = await getAccounts();
-      const active = (data.accounts || []).filter((a) => a.status === 'ACTIVE');
+      const res = await accountsService.getAccounts();
+      const active = (res.data.accounts || []).filter((a) => a.status === 'ACTIVE');
       setAccounts(active);
       if (active.length > 0) setFromAccount(active[0]._id);
     } catch (err) {
-      setError(err.message);
+      setError(err?.response?.data?.message || err.message);
     } finally {
       setLoadingAccounts(false);
     }
@@ -56,17 +56,17 @@ export default function Transfer() {
     setSubmitting(true);
     try {
       const idempotencyKey = crypto.randomUUID();
-      const data = await createTransfer({
+      const res = await transactionsService.createTransfer({
         fromAccount,
         toAccount,
         amount: parsedAmount,
         idempotencyKey,
       });
-      setSuccess(data.message || 'Transfer completed successfully');
+      setSuccess(res.data.message || 'Transfer completed successfully');
       setAmount('');
       setToAccount('');
     } catch (err) {
-      setError(err.message);
+      setError(err?.response?.data?.message || err.message);
     } finally {
       setSubmitting(false);
     }

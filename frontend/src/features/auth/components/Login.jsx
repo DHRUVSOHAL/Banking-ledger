@@ -1,20 +1,20 @@
-import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { useAuth } from '../../../context/AuthContext';
+import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
+import { useAuth } from "../../../context/AuthContext";
 
 export default function Login() {
   const navigate = useNavigate();
   const { login } = useAuth();
-  const headingText = 'You can Login to your account here';
-  const [displayedHeading, setDisplayedHeading] = useState('');
+  const headingText = "You can Login to your account here";
+  const [displayedHeading, setDisplayedHeading] = useState("");
   const [isAnimationDone, setIsAnimationDone] = useState(false);
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [error, setError] = useState('');
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    setDisplayedHeading('');
+    setDisplayedHeading("");
     setIsAnimationDone(false);
     let index = 0;
     const timer = setInterval(() => {
@@ -31,11 +31,15 @@ export default function Login() {
 
   async function handleSubmit(e) {
     e.preventDefault();
-    setError('');
+    setError("");
     setLoading(true);
     try {
-      await login({ email, password });
-      navigate('/dashboard');
+      const data = await login({ email, password });
+      if (data.user?.systemUser) {
+        navigate("/admin/deposits"); // 👈 admin
+      } else {
+        navigate("/dashboard"); // 👈 normal user
+      }
     } catch (err) {
       setError(err.message);
     } finally {
@@ -88,7 +92,7 @@ export default function Login() {
               disabled={loading}
               className="bg-blue-600 text-black hover:bg-blue-700 disabled:opacity-50 text-white font-medium p-2.5 rounded-md transition-colors mt-2"
             >
-              {loading ? 'Logging in...' : 'Login'}
+              {loading ? "Logging in..." : "Login"}
             </button>
           </form>
         </div>

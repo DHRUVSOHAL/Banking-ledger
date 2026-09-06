@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { createAccount } from '../../../api/accounts';
+import { accountsService } from '../../../service/accounts.service';
 
 export default function CreateAccountButton({ onCreated }) {
   const [loading, setLoading] = useState(false);
@@ -9,10 +9,10 @@ export default function CreateAccountButton({ onCreated }) {
     setLoading(true);
     setError('');
     try {
-      await createAccount();
+       await accountsService.createAccount(); 
       onCreated();
     } catch (err) {
-      setError(err.message);
+      setError(err?.response?.data?.message || err.message);
     } finally {
       setLoading(false);
     }

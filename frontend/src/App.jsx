@@ -4,6 +4,7 @@ import ProtectedRoute from './components/ProtectedRoute';
 import Home from './features/auth/pages/Home';
 import Dashboard from './features/dashboard/pages/Dashboard';
 import Transfer from './features/transfer/pages/Transfer';
+import PendingDeposits from './features/admin/pages/PendingDeposits'; // 👈 apne actual path se adjust karo
 
 export default function App() {
   return (
@@ -24,6 +25,14 @@ export default function App() {
             element={
               <ProtectedRoute>
                 <Transfer />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/admin/deposits"
+            element={
+              <ProtectedRoute>
+                <PendingDeposits />
               </ProtectedRoute>
             }
           />

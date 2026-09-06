@@ -1,265 +1,205 @@
-const transectionModel = require('../models/transection.model.js')
-
-
-const ledgerModel = require('../models/ledger.model.js')
-const userModel = require('../models/user.model.js')
-
-const emailService = require('../services/email.service.js')
-const accountModel = require('../models/account.model.js')
-const mongoose = require('mongoose')
-/**
- * create a new transection
- * The 10 steps TRANSFER flow:
- * 1.validate request
- * 2.validate idempotencykey
- * 3.check account status
- * 4.Derive sender balance fro ledger
- * 5.create transection(pending)
- * 6.create debit ledger entry
- * 7.create credit ledger entry
- * 8.mark transection complete
- * 9.commit mongodb sessions
- * 10.send email notifcation
- */
-
+const transectionModel = require("../models/transection.model.js");
+const ledgerModel = require("../models/ledger.model.js");
+const userModel = require("../models/user.model.js");
+const emailService = require("../services/email.service.js");
+const accountModel = require("../models/account.model.js");
+const mongoose = require("mongoose");
 
 async function createTransection(req, res) {
+  const { fromAccount, toAccount, amount, idempotencyKey } = req.body;
+  if (!fromAccount || !toAccount || !amount || !idempotencyKey) {
+    return res.status(400).json({ message: "All fields are required" });
+  }
 
-    /**
-     * validate request
-     */
-    const { fromAccount, toAccount, amount, idempotencyKey } = req.body;
-    if (!fromAccount || !toAccount || !amount || !idempotencyKey) {
-        return res.status(400).json({ message: 'All fields are required' })
-    }
-    const fromUserAccount = await accountModel.findById(fromAccount);
-    if (!fromUserAccount) {
-        return res.status(404).json({ message: "fromAccount not found" })
-    }
-    const toUserAccount = await accountModel.findById(toAccount);
-    if (!toUserAccount) {
-        return res.status(404).json({ message: "toAccount not found" })
-    }
+  const fromUserAccount = await accountModel.findById(fromAccount);
+  if (!fromUserAccount) {
+    return res.status(404).json({ message: "fromAccount not found" });
+  }
 
-    /**
-     * validate idempotencykey(same transection should not be processed twice)
-     */
-    const isTransectionAlreadyExists = await transectionModel.findOne({ idempotencyKey: idempotencyKey })
-    if (isTransectionAlreadyExists) {
-        if (isTransectionAlreadyExists.status === "Completed") {
-            return res.status(200).json({
-                message: "Transection already processed",
-                transection: isTransectionAlreadyExists
-            })
-        }
-        else if (isTransectionAlreadyExists.status === "Pending") {
-            return res.status(200).json({
-                message: "Transection is being processed",
-                transection: isTransectionAlreadyExists
-            })
-        }
-        else {
-            return res.status(409).json({
-                message: "Transection with this idempotencyKey already exists",
+  if (fromUserAccount.user.toString() !== req.user._id.toString()) {
+    return res.status(403).json({ message: "You don't have access to this account" });
+  }
 
-            })
-        }
+  const toUserAccount = await accountModel.findById(toAccount);
+  if (!toUserAccount) {
+    return res.status(404).json({ message: "toAccount not found" });
+  }
+
+  if (fromAccount === toAccount) {
+    return res.status(400).json({ message: "Cannot transfer to same account" });
+  }
+
+  const isTransectionAlreadyExists = await transectionModel.findOne({ idempotencyKey });
+  if (isTransectionAlreadyExists) {
+    if (isTransectionAlreadyExists.status === "Completed") {
+      return res.status(200).json({
+        message: "Transection already processed",
+        transection: isTransectionAlreadyExists,
+      });
+    } else if (isTransectionAlreadyExists.status === "Pending") {
+      return res.status(200).json({
+        message: "Transection is being processed",
+        transection: isTransectionAlreadyExists,
+      });
+    } else {
+      return res.status(409).json({
+        message: "Transection failed previously, please try again",
+        transection: isTransectionAlreadyExists,
+      });
     }
-    /**
-     * checking account status
-     */
-    if (fromUserAccount.status !== "ACTIVE" || toUserAccount.status !== "ACTIVE") {
-        return res.status(400).json({ message: "Both accounts must be active for transection" })
-    }
-    const fromUser = await userModel.findById(fromUserAccount.user);
-    const toUser = await userModel.findById(toUserAccount.user);
-    /**
-     * checking sender balance from ledger
-     */
-    const balance = await fromUserAccount.getBalance();
-    if (balance < amount) {
-        return res.status(400).json({ message: `Balance is insufficient for this transection. Current balance is ${balance}` })
-    }
+  }
+
+  if (fromUserAccount.status !== "ACTIVE" || toUserAccount.status !== "ACTIVE") {
+    return res.status(400).json({ message: "Both accounts must be active for transection" });
+  }
+
+  const fromUser = await userModel.findById(fromUserAccount.user);
+  const toUser = await userModel.findById(toUserAccount.user);
+
+  const balance = await fromUserAccount.getBalance();
+  if (balance < amount) {
+    return res.status(400).json({
+      message: `Balance is insufficient for this transection. Current balance is ${balance}`,
+    });
+  }
+
+  try {
+    const session = await mongoose.startSession();
+    session.startTransaction();
+
+    const [transection] = await transectionModel.create(
+      [{ fromAccount, toAccount, amount, idempotencyKey, status: "Pending" }],
+      { session }
+    );
+
+    await ledgerModel.create(
+      [{ account: fromAccount, transection: transection._id, amount, type: "DEBIT" }],
+      { session }
+    );
+
+    await ledgerModel.create(
+      [{ account: toAccount, transection: transection._id, amount, type: "CREDIT" }],
+      { session }
+    );
+
+    await transectionModel.findByIdAndUpdate(transection._id, { status: "Completed" }, { session });
+    await session.commitTransaction();
+    session.endSession();
+
     try {
-        /**
-         * creating transection
-         */
-
-        const session = await mongoose.startSession();
-        session.startTransaction()
-
-        const [transection] = await transectionModel.create(
-            [{
-                fromAccount,
-                toAccount,
-                amount,
-                idempotencyKey,
-                status: "Pending"
-            }],
-            { session }
-        );
-        if (fromAccount === toAccount) {
-            await session.abortTransaction();
-            session.endSession();
-            return res.status(400).json({
-                message: "Cannot transfer to same account"
-            });
-        }
-        await ledgerModel.create(
-            [{
-                account: fromAccount,
-                transection: transection._id,
-                amount: amount,
-                type: "DEBIT"
-            }],
-            { session }
-        );
-
-        await ledgerModel.create(
-            [{
-                account: toAccount,
-                transection: transection._id,
-                amount: amount,
-                type: "CREDIT"
-            }],
-            { session }
-        );
-        await transectionModel.findByIdAndUpdate(transection._id, { status: "Completed" }, { session })
-        await session.commitTransaction()
-        session.endSession()
-
-        try {
-            await emailService.senderTransectionEmail(fromUser.email, fromUser.name, amount, toAccount);
-            await emailService.receiverTransectionEmail(toUser.email, toUser.name, amount, fromAccount);
-        } catch (emailErr) {
-            console.error("Email error:", emailErr);
-        }
-
-        return res.status(201).json({
-            message: "Transection completed successfully",
-            transectionId: transection._id
-        })
-
-    } catch (err) {
-        console.error("Transaction error:", err);
-        emailService.sendTransectionFailureEmail(fromUser.email, fromUser.name, amount, toAccount).catch((emailErr) => {
-            console.error("Email error:", emailErr);
-        })
-
-        return res.status(400).json({
-            message: "Transection failed",
-        })
+      await emailService.senderTransectionEmail(fromUser.email, fromUser.name, amount, toAccount);
+      await emailService.receiverTransectionEmail(toUser.email, toUser.name, amount, fromAccount);
+    } catch (emailErr) {
+      console.error("Email error:", emailErr);
     }
+
+    return res.status(201).json({
+      message: "Transection completed successfully",
+      transectionId: transection._id,
+    });
+  } catch (err) {
+    console.error("Transaction error:", err);
+    emailService
+      .sendTransectionFailureEmail(fromUser.email, fromUser.name, amount, toAccount)
+      .catch((emailErr) => console.error("Email error:", emailErr));
+
+    return res.status(400).json({ message: "Transection failed" });
+  }
 }
 
+/**
+ * Reusable core logic — system account se kisi bhi account mein fund transfer karta hai.
+ */
+async function processInitialFunds({ toAccount, amount, idempotencyKey, systemUserId }) {
+  const session = await mongoose.startSession();
 
+  try {
+    session.startTransaction();
 
+    const existingTransection = await transectionModel.findOne({ idempotencyKey });
+    if (existingTransection) {
+      await session.abortTransaction();
+      return { error: "Transaction already processed", status: 409 };
+    }
+
+    const toUserAccount = await accountModel.findById(toAccount);
+    if (!toUserAccount) {
+      await session.abortTransaction();
+      return { error: "toAccount not found", status: 404 };
+    }
+
+    const fromUserAccount = await accountModel.findOne({ user: systemUserId });
+    if (!fromUserAccount) {
+      await session.abortTransaction();
+      return { error: "System account not found", status: 404 };
+    }
+
+    // 👇 NAYA — system account ka balance check
+    const systemBalance = await fromUserAccount.getBalance();
+    if (systemBalance < amount) {
+      await session.abortTransaction();
+      return { error: "System account has insufficient funds", status: 400 };
+    }
+
+    const [transection] = await transectionModel.create(
+      [{ fromAccount: fromUserAccount._id, toAccount: toUserAccount._id, amount, idempotencyKey, status: "Pending" }],
+      { session }
+    );
+
+    await ledgerModel.create(
+      [{ account: fromUserAccount._id, transection: transection._id, amount, type: "DEBIT" }],
+      { session }
+    );
+
+    await ledgerModel.create(
+      [{ account: toUserAccount._id, transection: transection._id, amount, type: "CREDIT" }],
+      { session }
+    );
+
+    transection.status = "Completed";
+    await transection.save({ session });
+
+    await session.commitTransaction();
+    return { transectionId: transection._id };
+  } catch (error) {
+    await session.abortTransaction();
+    return { error: error.message, status: 500 };
+  } finally {
+    session.endSession();
+  }
+}
+
+/**
+ * Route handler — direct API call ke liye
+ */
 async function createInitialFundsTransection(req, res) {
-    const { toAccount, amount, idempotencyKey } = req.body;
+  const { toAccount, amount, idempotencyKey } = req.body;
 
-    if (!toAccount || !idempotencyKey || !amount || amount <= 0) {
-        return res.status(400).json({
-            message: "Valid toAccount, amount and idempotencyKey are required"
-        });
-    }
+  if (!toAccount || !idempotencyKey || !amount || amount <= 0) {
+    return res.status(400).json({
+      message: "Valid toAccount, amount and idempotencyKey are required",
+    });
+  }
 
-    const session = await mongoose.startSession();
+  const result = await processInitialFunds({
+    toAccount,
+    amount,
+    idempotencyKey,
+    systemUserId: req.user._id,
+  });
 
-    try {
-        session.startTransaction();
+  if (result.error) {
+    return res.status(result.status).json({ message: result.error });
+  }
 
-        // Check idempotency
-        const existingTransection = await transectionModel.findOne({
-            idempotencyKey
-        });
-
-        if (existingTransection) {
-            await session.abortTransaction();
-            return res.status(409).json({
-                message: "Transaction already processed"
-            });
-        }
-
-        // Find recipient account
-        const toUserAccount = await accountModel.findById(toAccount);
-
-        if (!toUserAccount) {
-            await session.abortTransaction();
-            return res.status(404).json({
-                message: "toAccount not found"
-            });
-        }
-
-        // Find system account
-        const fromUserAccount = await accountModel.findOne({
-
-            user: req.user._id
-        });
-
-        if (!fromUserAccount) {
-            await session.abortTransaction();
-            return res.status(404).json({
-                message: "System account not found"
-            });
-        }
-
-        // Create transaction
-        const [transection] = await transectionModel.create(
-            [{
-                fromAccount: fromUserAccount._id,
-                toAccount: toUserAccount._id,
-                amount,
-                idempotencyKey,
-                status: "Pending"
-            }],
-            { session }
-        );
-
-        // Debit entry
-        await ledgerModel.create(
-            [{
-                account: fromUserAccount._id,
-                transection: transection._id,
-                amount: amount,
-                type: "DEBIT"
-            }],
-            { session }
-        );
-
-        // Credit entry
-        await ledgerModel.create(
-            [{
-                account: toUserAccount._id,
-                transection: transection._id,
-                amount: amount,
-                type: "CREDIT"
-            }],
-            { session }
-        );
-
-        // Mark completed
-        transection.status = "Completed";
-        await transection.save({ session });
-
-        await session.commitTransaction();
-
-        return res.status(201).json({
-            message: "Initial fund transection created successfully",
-            transectionId: transection._id
-        });
-
-    } catch (error) {
-        await session.abortTransaction();
-
-        return res.status(500).json({
-            message: error.message
-        });
-    } finally {
-        session.endSession();
-    }
+  return res.status(201).json({
+    message: "Initial fund transection created successfully",
+    transectionId: result.transectionId,
+  });
 }
 
 module.exports = {
-    createTransection,
-    createInitialFundsTransection
-}
+  createTransection,
+  createInitialFundsTransection,
+  processInitialFunds,
+};
