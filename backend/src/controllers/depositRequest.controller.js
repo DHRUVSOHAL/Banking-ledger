@@ -3,9 +3,9 @@ const accountModel = require('../models/account.model.js');
 const userModel = require('../models/user.model.js');
 const { processInitialFunds } = require('./transection.controllers.js');
 
-const AUTO_APPROVE_LIMIT = 50000; // 👈 threshold — isse zyada ho to admin approval chahiye
+const AUTO_APPROVE_LIMIT = 50000;
 
-// USER: naya deposit request banata hai
+// USER: Naya deposit request create karta hai
 async function createDepositRequest(req, res) {
   const { accountId, amount, idempotencyKey } = req.body;
 
@@ -23,9 +23,8 @@ async function createDepositRequest(req, res) {
     return res.status(200).json({ message: "Request already submitted", request: existing });
   }
 
-  // ✅ Case 1: Amount threshold ke andar hai — turant auto-approve
+  // Case 1: Threshold ke andar — auto-approve
   if (amount <= AUTO_APPROVE_LIMIT) {
-    // Koi bhi system user (admin) ka account dhoondo jahan se paisa DEBIT hoga
     const systemUser = await userModel.findOne({ systemUser: true }).select("+systemUser");
     if (!systemUser) {
       return res.status(500).json({ message: "No system account configured for deposits" });
@@ -59,7 +58,7 @@ async function createDepositRequest(req, res) {
     });
   }
 
-  // ❌ Case 2: Amount threshold se zyada hai — admin approval chahiye
+  // Case 2: Threshold se zyada — manual admin approval
   const request = await depositRequestModel.create({
     user: req.user._id,
     account: accountId,
@@ -74,22 +73,61 @@ async function createDepositRequest(req, res) {
   });
 }
 
-// baaki functions (getMyDepositRequests, getPendingDepositRequests, approveDepositRequest, rejectDepositRequest) same rahenge — koi change nahi
-
+// USER: Apne deposit requests dekhne ke liye
 async function getMyDepositRequests(req, res) {
-  const requests = await depositRequestModel.find({ user: req.user._id }).sort({ createdAt: -1 });
-  return res.status(200).json({ requests });
+  try {
+    const requests = await depositRequestModel.find({ user: req.user._id }).sort({ createdAt: -1 });
+    return res.status(200).json({ requests });
+  } catch (error) {
+    return res.status(500).json({ message: error.message });
+  }
 }
 
+// ADMIN: Pending requests list
 async function getPendingDepositRequests(req, res) {
-  const requests = await depositRequestModel
-    .find({ status: 'PENDING' })
-    .populate('user', 'name email')
-    .populate('account')
-    .sort({ createdAt: 1 });
-  return res.status(200).json({ requests });
+  try {
+    const requests = await depositRequestModel
+      .find({ status: 'PENDING' })
+      .populate('user', 'name email')
+      .populate('account')
+      .sort({ createdAt: 1 });
+    return res.status(200).json({ requests });
+  } catch (error) {
+    return res.status(500).json({ message: error.message });
+  }
 }
 
+// ADMIN: Approved requests list
+async function getApprovedDepositRequests(req, res) {
+  try {
+    const requests = await depositRequestModel
+      .find({ status: 'APPROVED' })
+      .populate('user', 'name email')
+      .populate('account')
+      .populate('reviewedBy', 'name email')
+      .sort({ reviewedAt: -1, createdAt: -1 });
+    return res.status(200).json({ requests });
+  } catch (error) {
+    return res.status(500).json({ message: error.message });
+  }
+}
+
+// ADMIN: Rejected requests list
+async function getRejectedDepositRequests(req, res) {
+  try {
+    const requests = await depositRequestModel
+      .find({ status: 'REJECTED' })
+      .populate('user', 'name email')
+      .populate('account')
+      .populate('reviewedBy', 'name email')
+      .sort({ reviewedAt: -1, createdAt: -1 });
+    return res.status(200).json({ requests });
+  } catch (error) {
+    return res.status(500).json({ message: error.message });
+  }
+}
+
+// ADMIN: Approve action
 async function approveDepositRequest(req, res) {
   const { requestId } = req.params;
 
@@ -117,9 +155,14 @@ async function approveDepositRequest(req, res) {
   request.reviewedAt = new Date();
   await request.save();
 
-  return res.status(200).json({ message: "Deposit approved successfully", request, transectionId: result.transectionId });
+  return res.status(200).json({ 
+    message: "Deposit approved successfully", 
+    request, 
+    transectionId: result.transectionId 
+  });
 }
 
+// ADMIN: Reject action
 async function rejectDepositRequest(req, res) {
   const { requestId } = req.params;
   const request = await depositRequestModel.findByIdAndUpdate(
@@ -135,6 +178,8 @@ module.exports = {
   createDepositRequest,
   getMyDepositRequests,
   getPendingDepositRequests,
+  getApprovedDepositRequests,
+  getRejectedDepositRequests,
   approveDepositRequest,
   rejectDepositRequest,
 };

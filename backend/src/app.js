@@ -22,5 +22,5 @@ app.use("/api/auth",authRouter)
 app.use("/api/accounts",accountRouter)
 app.use("/api/transections",transectionRouter)
 
-app.use("/api/deposit-requests", depositRequestRouter)
+app.use("/api/deposits", depositRequestRouter)
 module.exports=app
