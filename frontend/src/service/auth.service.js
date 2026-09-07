@@ -1,11 +1,11 @@
 import api from "./api";
 
 export const authService = {
-  register: (data) => api.post("/auth/register", data),
-  login: (data) => api.post("/auth/login", data),
-  logout: () => api.post("/auth/logout"),
-  me: () => api.get("/auth/me"),
-  forgotPassword: (email) => api.post("/auth/forget-password", { email }),
-  verifyOtp: ({otp }) => api.post("/auth/verify-otp", { email, otp }),
-  resetPassword: (newPassword) => api.post("/auth/reset-password", { newPassword }),
+  register: (data) => api.post("/api/auth/register", data),
+  login: (data) => api.post("/api/auth/login", data),
+  logout: () => api.post("/api/auth/logout"),
+  me: () => api.get("/api/auth/me"),
+  forgotPassword: (email) => api.post("/api/auth/forget-password", { email }),
+  verifyOtp: ({otp }) => api.post("/api/auth/verify-otp", { email, otp }),
+  resetPassword: (newPassword) => api.post("/api/auth/reset-password", { newPassword }),
 };
