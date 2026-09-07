@@ -10,42 +10,56 @@ const bcrypt = require("bcrypt"); // ya bcryptjs, jo bhi tumne install kiya hai
  * @description:Register a new user
  */
 async function userRegisterController(req, res) {
-  const { email, name, password } = req.body;
-  if (!email || !name || !password) {
-    return res.status(401).json({
+  try {
+    const { email, name, password } = req.body;
+    if (!email || !name || !password) {
+      return res.status(400).json({
+        success: false,
+        message: "All fields are required",
+      });
+    }
+
+    const isExist = await userModel.findOne({ email: email });
+    if (isExist) {
+      return res.status(409).json({
+        message: "User already exists with this email",
+        status: "failed",
+      });
+    }
+
+    const user = await userModel.create({
+      email,
+      name,
+      password,
+    });
+
+    const token = jwt.sign({ userId: user._id }, process.env.JWT_SECRET, {
+      expiresIn: "1d",
+    });
+    res.cookie("token", token);
+
+    // 📧 Call email service
+    console.log("Triggering registration email to:", user.email);
+    await emailService.sendRegistrationEmail(user.email, user.name);
+
+    return res.status(201).json({
+      message: "User registered successfully",
+      status: "success",
+      token,
+      user: {
+        _id: user._id,
+        email: user.email,
+        name: user.name,
+      },
+    });
+  } catch (error) {
+    console.error("Register Controller Error:", error);
+    return res.status(500).json({
       success: false,
-      message: "All fields are required",
+      message: "Internal server error",
+      error: error.message,
     });
   }
-
-  const isExist = await userModel.findOne({ email: email });
-  if (isExist) {
-    return res.status(401).json({
-      message: "user already exist with this email",
-      status: "failed",
-    });
-  }
-
-  const user = await userModel.create({
-    email,
-    name,
-    password,
-  });
-  const token = jwt.sign({ userId: user._id }, process.env.JWT_SECRET, {
-    expiresIn: "1d",
-  });
-  res.cookie("token", token);
-  res.status(201).json({
-    message: "user registered successfully",
-    status: "success",
-    token,
-    user: {
-      _id: user._id,
-      email: user.email,
-      name: user.name,
-    },
-  });
-  await emailService.sendRegistrationEmail(user.email, user.name);
 }
 /**
  * @description:Login user
@@ -139,11 +153,9 @@ async function userLogoutController(req, res) {
  * @description  it will take email as input and send otp and match
  * @access private
  */
-
 async function forgetPassword(req, res) {
   try {
     const { email } = req.body;
-
     if (!email) {
       return res
         .status(400)
@@ -152,89 +164,86 @@ async function forgetPassword(req, res) {
 
     const user = await userModel.findOne({ email });
     if (!user) {
-      return res.status(440).json({
-        success: false,
-        message: "Khaata nahi mila! Pehle register karein.",
-      });
+      return res
+        .status(404)
+        .json({ success: false, message: "Khaata nahi mila!" });
     }
+
     const plainOTP = crypto.randomInt(100000, 999999).toString();
     const hash = await bcrypt.hash(plainOTP, 10);
 
     await otpModel.findOneAndDelete({ email });
-    await otpModel.create({
-      email: email,
-      otp: hash,
-    });
+    await otpModel.create({ email, otp: hash });
 
-    console.log(
-      `\n📩 [TESTING] OTP sent to ${email} -> PLAIN OTP: ${plainOTP}\n`,
+    await emailService.sendOTPEmail(email, plainOTP);
+
+    // Email ko safe JWT me pack karke cookie me bhejo
+    const resetSession = jwt.sign(
+      { email: user.email },
+      process.env.JWT_SECRET,
+      { expiresIn: "10m" },
     );
 
-    await sendOTPEmail(email, plainOTP);
+    res.cookie("resetSession", resetSession, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
+      maxAge: 10 * 60 * 1000,
+    });
 
     return res.status(200).json({
       success: true,
       message: "OTP aapke email par bhej diya gaya hai.",
     });
   } catch (error) {
-    console.error("Error in forgetPassword:", error);
-    return res.status(500).json({
-      success: false,
-      message: "Server error",
-      error: error.message,
-    });
+    return res.status(500).json({ success: false, error: error.message });
   }
 }
+
 async function verifyOtp(req, res) {
   try {
-    const { email, otp } = req.body;
+    const { otp } = req.body; // Body se sirf OTP chahiye
+    const sessionToken = req.cookies.resetSession;
 
-    if (!email || !otp) {
-      return res
-        .status(400)
-        .json({ success: false, message: "Email aur OTP dono zaroori hain!" });
-    }
-
-    const otpRecord = await otpModel.findOne({ email });
-
-    if (!otpRecord) {
+    if (!sessionToken) {
       return res.status(400).json({
         success: false,
-        message:
-          "OTP expire ho chuka hai ya galat email hai. Naya OTP request karein.",
+        message: "Session expire ho gaya. Pehle OTP request karein.",
       });
     }
 
-    const isMatch = await bcrypt.compare(otp, otpRecord.otp);
+    // Cookie se email decode karo
+    const decoded = jwt.verify(sessionToken, process.env.JWT_SECRET);
+    const email = decoded.email;
 
+    const otpRecord = await otpModel.findOne({ email });
+    if (!otpRecord) {
+      return res
+        .status(400)
+        .json({ success: false, message: "OTP expire ho chuka hai." });
+    }
+
+    const isMatch = await bcrypt.compare(
+      String(otp).trim(),
+      String(otpRecord.otp),
+    );
     if (!isMatch) {
       return res
         .status(400)
-        .json({
-          success: false,
-          message: "Galat OTP hai! Kripya check karke dubara dalein.",
-        });
+        .json({ success: false, message: "Galat OTP hai!" });
     }
 
-    const user = await userModel.findOne({ email });
-    if (!user) {
-      return res
-        .status(444)
-        .json({ success: false, message: "User nahi mila!" });
-    }
-
-    const resetToken = jwt.sign(
-      {
-        id: user._id,
-        purpose: "reset-password",
-      },
+    // OTP match ho gaya! Ab cookie ko upgrade karke verified mark kar do
+    const verifiedSession = jwt.sign(
+      { email, isVerified: true },
       process.env.JWT_SECRET,
       { expiresIn: "10m" },
     );
-    res.cookie("resetToken", resetToken, {
+
+    res.cookie("resetSession", verifiedSession, {
       httpOnly: true,
-      secure: true,
-      sameSite: "none",
+      secure: process.env.NODE_ENV === "production",
+      sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
       maxAge: 10 * 60 * 1000,
     });
 
@@ -242,13 +251,12 @@ async function verifyOtp(req, res) {
 
     return res.status(200).json({
       success: true,
-      message: "OTP verification safal raha! Ab aap password badal sakte hain.",
+      message: "OTP verify ho gaya! Ab naya password enter karein.",
     });
   } catch (error) {
-    console.error("Error in verifyOtp:", error);
     return res
-      .status(500)
-      .json({ success: false, message: "Server error", error: error.message });
+      .status(400)
+      .json({ success: false, message: "Invalid session ya expire ho gaya" });
   }
 }
 
@@ -257,74 +265,74 @@ async function verifyOtp(req, res) {
  * @description Reset user password after valid OTP token verification
  * @access Protected (via verifyResetToken middleware)
  */
-
 async function resetPassword(req, res) {
   try {
     const { newPassword } = req.body;
+    const sessionToken = req.cookies.resetSession;
 
-    if (!newPassword) {
-      return res.status(400).json({
-        success: false,
-        message: "Naya password dalna zaroori hai!",
-      });
+    if (!sessionToken) {
+      return res
+        .status(401)
+        .json({ success: false, message: "Pehle OTP verify karein!" });
     }
 
-    if (newPassword.length < 6) {
-      return res.status(400).json({
-        success: false,
-        message: "Password kam se kam 6 characters ka hona chahiye.",
-      });
+    const decoded = jwt.verify(sessionToken, process.env.JWT_SECRET);
+    if (!decoded.isVerified) {
+      return res
+        .status(403)
+        .json({ success: false, message: "OTP verification zaroori hai!" });
     }
 
-    const user = await userModel.findById(req.user.id);
+    if (!newPassword || newPassword.length < 6) {
+      return res
+        .status(400)
+        .json({
+          success: false,
+          message: "Password kam se kam 6 characters ka hona chahiye.",
+        });
+    }
+
+    // Cookie se direct user mila
+    const user = await userModel.findOne({ email: decoded.email });
     if (!user) {
-      return res.status(404).json({
-        success: false,
-        message: "User nahi mila!",
-      });
+      return res
+        .status(404)
+        .json({ success: false, message: "User nahi mila!" });
     }
 
-    const salt = await bcrypt.genSalt(10);
-    const hashedPassword = await bcrypt.hash(newPassword, salt);
-
-    user.password = hashedPassword;
+    // Password update
+    user.password = newPassword;
     await user.save();
 
-    res.clearCookie("resetToken", {
-      httpOnly: true,
-      secure: true,
-      sameSite: "none",
+    // 1. Temporary reset session cookie hatao
+    res.clearCookie("resetSession");
+
+    // 2. Direct user ko login karao (Permanent Login Token)
+    const authToken = jwt.sign({ userId: user._id }, process.env.JWT_SECRET, {
+      expiresIn: "1d",
     });
 
-    const token = jwt.sign(
-      { id: user._id, username: user.username },
-      process.env.JWT_SECRET,
-      { expiresIn: "1d" },
-    );
-
-    res.cookie("token", token, {
+    res.cookie("token", authToken, {
       httpOnly: true,
-      secure: true,
-      sameSite: "none",
-      maxAge: 24 * 60 * 60 * 1000, // 1 din
+      secure: process.env.NODE_ENV === "production",
+      sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
+      maxAge: 24 * 60 * 60 * 1000,
     });
 
     return res.status(200).json({
       success: true,
-      message: "Password badal gaya hai aur aap login ho chuke hain!",
+      message: "Password badal gaya aur aap direct login ho chuke hain!",
+      token: authToken,
       user: {
-        id: user._id,
-        username: user.username,
+        _id: user._id,
+        name: user.name,
         email: user.email,
       },
     });
   } catch (error) {
-    console.error("Error in resetPassword:", error);
-    return res.status(500).json({
-      success: false,
-      message: "Server error",
-      error: error.message,
-    });
+    return res
+      .status(500)
+      .json({ success: false, message: "Server error", error: error.message });
   }
 }
 

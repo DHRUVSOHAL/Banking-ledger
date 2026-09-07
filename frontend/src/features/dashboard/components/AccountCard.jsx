@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom'; // 👈 1. Import useNavigate
 import { accountsService } from '../../../service/accounts.service';
 import LoadingSpinner from '../../../components/LoadingSpinner';
 import DepositButton from './DepositButton';
@@ -12,6 +13,7 @@ function truncateId(id) {
 }
 
 export default function AccountCard({ account }) {
+  const navigate = useNavigate(); // 👈 2. Hook initialize kiya
   const [balance, setBalance] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -66,7 +68,19 @@ export default function AccountCard({ account }) {
         Copy account ID
       </button>
 
-      <DepositButton accountId={account._id} onDeposited={fetchBalance} />
+      {/* Buttons Row */}
+      <div className="flex items-center gap-2 mt-2">
+        <DepositButton accountId={account._id} onDeposited={fetchBalance} />
+        
+        {/* 👇 History Button with type="button" and proper navigate */}
+        <button
+          type="button"
+          onClick={() => navigate(`/account/${account._id}/history`)}
+          className="flex-1 bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-xs font-semibold py-2 px-3 rounded-lg border border-zinc-700 transition-colors"
+        >
+          History
+        </button>
+      </div>
     </div>
   );
 }

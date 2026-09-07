@@ -1,9 +1,11 @@
 import { useCallback, useEffect, useState } from 'react';
+import { useAuth } from '../../../context/AuthContext'; // 👈 AuthContext import karo
 import { depositService } from '../../../service/deposit.service';
 import LoadingSpinner from '../../../components/LoadingSpinner';
 import DashboardNav from '../../dashboard/components/DashboardNav';
 
 export default function PendingDeposits() {
+  const { user, loading: authLoading } = useAuth(); // 👈 user & authLoading access karo
   const [requests, setRequests] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -14,7 +16,7 @@ export default function PendingDeposits() {
     setError('');
     try {
       const res = await depositService.getPendingRequests();
-      setRequests(res.data.requests || []);
+      setRequests(res.data?.requests || res.data || []);
     } catch (err) {
       setError(err?.response?.data?.message || err.message);
     } finally {
@@ -23,8 +25,11 @@ export default function PendingDeposits() {
   }, []);
 
   useEffect(() => {
-    fetchRequests();
-  }, [fetchRequests]);
+    // 💡 Auth initialize hone do aur ensure karo ki user logged in hai
+    if (!authLoading && user) {
+      fetchRequests();
+    }
+  }, [authLoading, user, fetchRequests]);
 
   async function handleApprove(requestId) {
     setActionLoadingId(requestId);
@@ -50,6 +55,18 @@ export default function PendingDeposits() {
     } finally {
       setActionLoadingId(null);
     }
+  }
+
+  // Agar auth abhi initialize ho raha ho ya data load ho raha ho
+  if (authLoading || (loading && requests.length === 0 && !error)) {
+    return (
+      <div className="min-h-screen bg-zinc-950">
+        <DashboardNav />
+        <div className="pt-20">
+          <LoadingSpinner />
+        </div>
+      </div>
+    );
   }
 
   return (
@@ -84,7 +101,7 @@ export default function PendingDeposits() {
                   {req.user?.name} ({req.user?.email})
                 </p>
                 <p className="text-zinc-500 text-xs font-mono mt-1">
-                  Account: {req.account?._id}
+                  Account: {req.account?._id || req.account}
                 </p>
                 <p className="text-emerald-400 font-bold mt-1">₹{req.amount}</p>
               </div>
@@ -92,14 +109,14 @@ export default function PendingDeposits() {
                 <button
                   onClick={() => handleApprove(req._id)}
                   disabled={actionLoadingId === req._id}
-                  className="bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white text-sm px-3 py-1.5 rounded-md"
+                  className="bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white text-sm px-3 py-1.5 rounded-md transition-colors"
                 >
                   {actionLoadingId === req._id ? '...' : 'Approve'}
                 </button>
                 <button
                   onClick={() => handleReject(req._id)}
                   disabled={actionLoadingId === req._id}
-                  className="bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white text-sm px-3 py-1.5 rounded-md"
+                  className="bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white text-sm px-3 py-1.5 rounded-md transition-colors"
                 >
                   {actionLoadingId === req._id ? '...' : 'Reject'}
                 </button>

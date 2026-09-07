@@ -1,35 +1,34 @@
 require('dotenv').config();
-const { Resend } = require('resend');
+const nodemailer = require('nodemailer');
 
-// Initialize Resend with API Key
-const resend = new Resend(process.env.RESEND_API_KEY);
+const transporter = nodemailer.createTransport({
+  host: 'smtp.gmail.com',
+  port: 587,
+  secure: false, // 587 ke liye false hona zaroori hai
+  requireTLS: true,
+  auth: {
+    user: process.env.EMAIL_USER,
+    pass: process.env.EMAIL_PASS,
+  },
+});
 
-// Generic function to send email via Resend
 const sendEmail = async (to, subject, text, html) => {
   try {
-    const { data, error } = await resend.emails.send({
-      // NOTE: Agar domain verified nahi hai, to sirf "onboarding@resend.dev" se bhej sakte ho testing ke liye.
-      // Domain verify hone ke baad: "no-reply@yourdomain.com" ya `"BANKING-LEDGER" <support@yourdomain.com>` use kar sakte ho.
-      from: process.env.EMAIL_FROM || 'onboarding@resend.dev', 
-      to: [to], // Resend expects an array or string
-      subject: subject,
-      text: text,
-      html: html,
+    const info = await transporter.sendMail({
+      from: `"BANKING-LEDGER" <${process.env.EMAIL_USER}>`,
+      to,
+      subject,
+      text,
+      html,
     });
-
-    if (error) {
-      console.error('Resend Error:', error);
-      return;
-    }
-
-    console.log('Email sent successfully via Resend. ID:', data.id);
+    console.log('Email sent successfully. ID:', info.messageId);
   } catch (error) {
-    console.error('Unexpected error sending email:', error);
+    console.error('Nodemailer Error:', error);
   }
 };
 
-// 1. Registration Email
 async function sendRegistrationEmail(userEmail, name) {
+  console.log("📧 sendEmail called with:", userEmail, 'Welcome to Banking-Ledger!');
   const subject = 'Welcome to Banking-Ledger!';
   const text = `Dear ${name},\n\nThank you for registering with Banking-Ledger. We are excited to have you on board!\n\nBest regards,\nThe Banking-Ledger Team`;
   const html = `<p>Dear <strong>${name}</strong>,</p>
@@ -38,7 +37,6 @@ async function sendRegistrationEmail(userEmail, name) {
   await sendEmail(userEmail, subject, text, html);
 }
 
-// 2. Sender Transaction Success Email
 async function senderTransectionEmail(userEmail, name, amount, toAccount) {
   const subject = 'Transaction Successful';
   const text = `Hello ${name},\n\nYour transaction of INR ${amount} to account ${toAccount} was successfully made.\n\nRegards,\nBANKING-LEDGER`;
@@ -48,7 +46,6 @@ async function senderTransectionEmail(userEmail, name, amount, toAccount) {
   await sendEmail(userEmail, subject, text, html);
 }
 
-// 3. Receiver Transaction Success Email
 async function receiverTransectionEmail(userEmail, name, amount, fromAccount) {
   const subject = 'Transaction Received';
   const text = `Hello ${name},\n\nYou have received INR ${amount} from account ${fromAccount}.\n\nRegards,\nBANKING-LEDGER`;
@@ -58,7 +55,6 @@ async function receiverTransectionEmail(userEmail, name, amount, fromAccount) {
   await sendEmail(userEmail, subject, text, html);
 }
 
-// 4. Transaction Failure Email
 async function sendTransectionFailureEmail(userEmail, name, amount, toAccount) {
   const subject = 'Transaction Failed';
   const text = `Hello ${name},\n\nYour transaction of INR ${amount} to account ${toAccount} has FAILED.\n\nRegards,\nBANKING-LEDGER`;
@@ -68,7 +64,6 @@ async function sendTransectionFailureEmail(userEmail, name, amount, toAccount) {
   await sendEmail(userEmail, subject, text, html);
 }
 
-// 5. OTP Email (for forget-password flow)
 async function sendOTPEmail(userEmail, otp) {
   const subject = 'Your OTP for Password Reset';
   const text = `Your OTP for password reset is: ${otp}\n\nThis OTP is valid for 10 minutes. Do not share it with anyone.\n\nRegards,\nBANKING-LEDGER`;

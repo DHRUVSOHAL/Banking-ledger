@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 
 export default function About() {
   const headingText = "About Us";
-  const paragraphText = "Welcome to your digital asset and transaction tracker. Securely monitor logs, manage debit/credit balance sheets, and audit entries seamlessly. This platform provides real-time financial updates and data security at its core.";
+  const paragraphText = "Welcome to Banking Ledger — a simple platform to manage your account and send money securely. Create an account, deposit funds, and transfer money to others instantly. Every transaction is recorded using a double-entry ledger system, ensuring your balance is always accurate and traceable.";
 
   const [displayedHeading, setDisplayedHeading] = useState("");
   const [displayedParagraph, setDisplayedParagraph] = useState("");

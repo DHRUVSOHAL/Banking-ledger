@@ -134,23 +134,27 @@ async function processInitialFunds({ toAccount, amount, idempotencyKey, systemUs
       return { error: "System account not found", status: 404 };
     }
 
-    // 👇 NAYA — system account ka balance check
-    const systemBalance = await fromUserAccount.getBalance();
-    if (systemBalance < amount) {
-      await session.abortTransaction();
-      return { error: "System account has insufficient funds", status: 400 };
-    }
+    // ❌ REMOVED: systemBalance < amount check ko hata diya 
+    // Real deposit me paisa user bank ko la kar de raha hai, bank ka reserve drain nahi hona chahiye.
 
     const [transection] = await transectionModel.create(
-      [{ fromAccount: fromUserAccount._id, toAccount: toUserAccount._id, amount, idempotencyKey, status: "Pending" }],
+      [{ 
+        fromAccount: fromUserAccount._id, 
+        toAccount: toUserAccount._id, 
+        amount, 
+        idempotencyKey, 
+        status: "Pending" 
+      }],
       { session }
     );
 
+    // ✅ Bank ke main vault me paisa aaya (CREDIT)
     await ledgerModel.create(
-      [{ account: fromUserAccount._id, transection: transection._id, amount, type: "DEBIT" }],
+      [{ account: fromUserAccount._id, transection: transection._id, amount, type: "CREDIT" }],
       { session }
     );
 
+    // ✅ User ke account me paisa mila (CREDIT)
     await ledgerModel.create(
       [{ account: toUserAccount._id, transection: transection._id, amount, type: "CREDIT" }],
       { session }

@@ -8,7 +8,7 @@ const ledgerModel = require('./src/models/ledger.model.js');
 async function seed() {
   await connectDB();
 
-  const ADMIN_ACCOUNT_ID = "6a9d3daea35eba55477c9abd"; // 👈 copy button se liya hua ID
+  const ADMIN_ACCOUNT_ID = "6a9d4b6333defaf830a78e2f"; // 👈 copy button se liya hua ID
   const AMOUNT = 1000000; // ₹10,00,000 — jitna chahiye utna rakh lo
 
   const account = await accountModel.findById(ADMIN_ACCOUNT_ID);

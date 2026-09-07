@@ -6,6 +6,6 @@ export const authService = {
   logout: () => api.post("/auth/logout"),
   me: () => api.get("/auth/me"),
   forgotPassword: (email) => api.post("/auth/forget-password", { email }),
-  verifyOtp: ({ email, otp }) => api.post("/auth/verify-otp", { email, otp }),
+  verifyOtp: ({otp }) => api.post("/auth/verify-otp", { email, otp }),
   resetPassword: (newPassword) => api.post("/auth/reset-password", { newPassword }),
 };

@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
 import { useAuth } from "../../../context/AuthContext";
 
 export default function Login() {
@@ -35,14 +35,16 @@ export default function Login() {
     setLoading(true);
     try {
       const data = await login({ email, password });
-      if (data.user?.systemUser) {
-        navigate("/admin/deposits"); // 👈 admin
-      } else {
-        navigate("/dashboard"); // 👈 normal user
-      }
+
+      const isSystemAdmin = data?.user?.systemUser;
+      const targetPath = isSystemAdmin ? "/admin/deposits" : "/dashboard";
+
+      // Cookie write aur AuthContext sync hone ka 100ms buffer
+      setTimeout(() => {
+        navigate(targetPath, { replace: true });
+      }, 100);
     } catch (err) {
-      setError(err.message);
-    } finally {
+      setError(err?.response?.data?.message || err.message);
       setLoading(false);
     }
   }
@@ -77,7 +79,7 @@ export default function Login() {
                 required
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="border border-zinc-300  bg-white text-black rounded-md p-2 w-full h-10 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="border border-zinc-300 bg-white text-black rounded-md p-2 w-full h-10 focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
             </div>
 
@@ -90,10 +92,19 @@ export default function Login() {
             <button
               type="submit"
               disabled={loading}
-              className="bg-blue-600 text-black hover:bg-blue-700 disabled:opacity-50 text-white font-medium p-2.5 rounded-md transition-colors mt-2"
+              className="bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-medium p-2.5 rounded-md transition-colors mt-2"
             >
               {loading ? "Logging in..." : "Login"}
             </button>
+
+            <div className="text-center mt-2">
+              <Link
+                to="/forgot-password"
+                className="text-red-500 hover:text-red-400 text-sm font-semibold tracking-wide transition-colors duration-200 inline-block hover:underline"
+              >
+                Forgot Password?
+              </Link>
+            </div>
           </form>
         </div>
       )}

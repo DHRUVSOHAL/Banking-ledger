@@ -1,12 +1,10 @@
-const express=require('express');
+const express = require("express");
 
+const authMiddleware = require("../middleware/auth.middleware.js");
 
+const accountController = require("../controllers/account.controllers.js");
 
-const authMiddleware=require('../middleware/auth.middleware.js')
-
-const accountController=require("../controllers/account.controllers.js")
-
-const router=express.Router();
+const router = express.Router();
 
 /**
  * @route POST /api/accounts/
@@ -14,33 +12,36 @@ const router=express.Router();
  * protected route, requires authentication
  */
 
-router.post("/",authMiddleware.authMiddleware,accountController.createAccount)
+router.post(
+  "/",
+  authMiddleware.authMiddleware,
+  accountController.createAccount,
+);
 
 /**
  * @route GET /api/accounts/
  * @description get all account of logged in user
  */
-router.get('/',authMiddleware.authMiddleware,accountController.getAUserAccountsOfUser)
+router.get(
+  "/",
+  authMiddleware.authMiddleware,
+  accountController.getAUserAccountsOfUser,
+);
 
 /**
  * @GET /api/accounts/balance/:accountId
  * @description get balance of an account
  * protected route, requires authentication
  */
-router.get('/balance/:accountId',authMiddleware.authMiddleware,accountController.getAccountBalance)
+router.get(
+  "/balance/:accountId",
+  authMiddleware.authMiddleware,
+  accountController.getAccountBalance,
+);
+router.get(
+  "/ledger/:accountId",
+  authMiddleware.authMiddleware,
+  accountController.getAccountLedgerHistory,
+);
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-module.exports=router
+module.exports = router;

@@ -6,4 +6,5 @@ export const accountsService = {
   getAccountBalance: (accountId) => api.get(`/accounts/balance/${accountId}`),
 
   createAccount: () => api.post("/accounts"),
+  getAccountLedgerHistory: (accountId) => api.get(`/accounts/ledger/${accountId}`),
 };
