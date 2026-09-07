@@ -4,10 +4,18 @@ const emailService = require("../services/email.service.js");
 const blackListModel = require("../models/blackList.model.js");
 const otpModel = require("../models/Otp.model");
 const crypto = require("crypto");
-const bcrypt = require("bcrypt"); // ya bcryptjs, jo bhi tumne install kiya hai
+const bcrypt = require("bcrypt");
+
+// 🔐 Production-safe cookie helper for cross-origin Render deployment
+const getCookieOptions = (maxAgeMs = 24 * 60 * 60 * 1000) => ({
+  httpOnly: true,
+  maxAge: maxAgeMs,
+  secure: process.env.NODE_ENV === "production",
+  sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
+});
 
 /**
- * @description:Register a new user
+ * @description Register a new user
  */
 async function userRegisterController(req, res) {
   try {
@@ -36,11 +44,17 @@ async function userRegisterController(req, res) {
     const token = jwt.sign({ userId: user._id }, process.env.JWT_SECRET, {
       expiresIn: "1d",
     });
-    res.cookie("token", token);
 
-    // 📧 Call email service
-    console.log("Triggering registration email to:", user.email);
-    await emailService.sendRegistrationEmail(user.email, user.name);
+    // ✅ Cookie options matched with production config
+    res.cookie("token", token, getCookieOptions(24 * 60 * 60 * 1000));
+
+    // 📧 Call email service (Non-blocking fail-safe)
+    try {
+      console.log("Triggering registration email to:", user.email);
+      await emailService.sendRegistrationEmail(user.email, user.name);
+    } catch (mailErr) {
+      console.error("Email service error:", mailErr.message);
+    }
 
     return res.status(201).json({
       message: "User registered successfully",
@@ -61,11 +75,9 @@ async function userRegisterController(req, res) {
     });
   }
 }
+
 /**
- * @description:Login user
- */
-/**
- * @description:Login user
+ * @description Login user
  */
 async function userLoginController(req, res) {
   try {
@@ -74,18 +86,17 @@ async function userLoginController(req, res) {
     // 1. Validation Check
     if (!email || !password) {
       return res.status(400).json({
-        // Changed status from 401 to 400 (Bad Request)
         success: false,
         message: "All fields are required",
       });
     }
 
-    // 2. Find user and explicitly select password
-    const user = await userModel.findOne({ email: email }).select("+password");
+    // 2. Find user and explicitly select password & systemUser
+    const user = await userModel.findOne({ email: email }).select("+password +systemUser");
     if (!user) {
       return res.status(401).json({
         success: false,
-        message: "Invalid email or password", // Security Best Practice: Don't specify exactly what failed
+        message: "Invalid email or password",
       });
     }
 
@@ -103,13 +114,8 @@ async function userLoginController(req, res) {
       expiresIn: "1d",
     });
 
-    // 5. Set Secure Cookie
-    res.cookie("token", token, {
-      httpOnly: true, // Prevents XSS attacks (JS cannot read token)
-      maxAge: 24 * 60 * 60 * 1000, // 1 day in milliseconds
-      secure: process.env.NODE_ENV === "production", // HTTPS only in production
-      sameSite: "strict", // Prevents CSRF attacks
-    });
+    // 5. Set Secure Cookie with SameSite=None for Render
+    res.cookie("token", token, getCookieOptions(24 * 60 * 60 * 1000));
 
     // 6. Final Response
     return res.status(200).json({
@@ -131,6 +137,7 @@ async function userLoginController(req, res) {
     });
   }
 }
+
 async function userLogoutController(req, res) {
   const token = req.cookies.token || req.headers.authorization?.split(" ")[1];
 
@@ -139,34 +146,30 @@ async function userLogoutController(req, res) {
       message: "No token found in cookies",
     });
   }
-  res.cookie("token", "");
+
+  // Clear cookie with exact same flags
+  res.clearCookie("token", getCookieOptions());
   await blackListModel.create({ token });
 
   return res.status(200).json({
-    message: "user logged out successfully",
+    message: "User logged out successfully",
     status: "success",
   });
 }
 
 /**
  * @route POST /api/auth/forget-password
- * @description  it will take email as input and send otp and match
- * @access private
  */
 async function forgetPassword(req, res) {
   try {
     const { email } = req.body;
     if (!email) {
-      return res
-        .status(400)
-        .json({ success: false, message: "Email required hai!" });
+      return res.status(400).json({ success: false, message: "Email required hai!" });
     }
 
     const user = await userModel.findOne({ email });
     if (!user) {
-      return res
-        .status(404)
-        .json({ success: false, message: "Khaata nahi mila!" });
+      return res.status(404).json({ success: false, message: "Khaata nahi mila!" });
     }
 
     const plainOTP = crypto.randomInt(100000, 999999).toString();
@@ -177,19 +180,14 @@ async function forgetPassword(req, res) {
 
     await emailService.sendOTPEmail(email, plainOTP);
 
-    // Email ko safe JWT me pack karke cookie me bhejo
+    // Reset session token (10 mins)
     const resetSession = jwt.sign(
       { email: user.email },
       process.env.JWT_SECRET,
       { expiresIn: "10m" },
     );
 
-    res.cookie("resetSession", resetSession, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
-      maxAge: 10 * 60 * 1000,
-    });
+    res.cookie("resetSession", resetSession, getCookieOptions(10 * 60 * 1000));
 
     return res.status(200).json({
       success: true,
@@ -202,7 +200,7 @@ async function forgetPassword(req, res) {
 
 async function verifyOtp(req, res) {
   try {
-    const { otp } = req.body; // Body se sirf OTP chahiye
+    const { otp } = req.body;
     const sessionToken = req.cookies.resetSession;
 
     if (!sessionToken) {
@@ -212,15 +210,12 @@ async function verifyOtp(req, res) {
       });
     }
 
-    // Cookie se email decode karo
     const decoded = jwt.verify(sessionToken, process.env.JWT_SECRET);
     const email = decoded.email;
 
     const otpRecord = await otpModel.findOne({ email });
     if (!otpRecord) {
-      return res
-        .status(400)
-        .json({ success: false, message: "OTP expire ho chuka hai." });
+      return res.status(400).json({ success: false, message: "OTP expire ho chuka hai." });
     }
 
     const isMatch = await bcrypt.compare(
@@ -228,25 +223,17 @@ async function verifyOtp(req, res) {
       String(otpRecord.otp),
     );
     if (!isMatch) {
-      return res
-        .status(400)
-        .json({ success: false, message: "Galat OTP hai!" });
+      return res.status(400).json({ success: false, message: "Galat OTP hai!" });
     }
 
-    // OTP match ho gaya! Ab cookie ko upgrade karke verified mark kar do
+    // Upgrade session to verified
     const verifiedSession = jwt.sign(
       { email, isVerified: true },
       process.env.JWT_SECRET,
       { expiresIn: "10m" },
     );
 
-    res.cookie("resetSession", verifiedSession, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
-      maxAge: 10 * 60 * 1000,
-    });
-
+    res.cookie("resetSession", verifiedSession, getCookieOptions(10 * 60 * 1000));
     await otpModel.deleteOne({ _id: otpRecord._id });
 
     return res.status(200).json({
@@ -254,16 +241,12 @@ async function verifyOtp(req, res) {
       message: "OTP verify ho gaya! Ab naya password enter karein.",
     });
   } catch (error) {
-    return res
-      .status(400)
-      .json({ success: false, message: "Invalid session ya expire ho gaya" });
+    return res.status(400).json({ success: false, message: "Invalid session ya expire ho gaya" });
   }
 }
 
 /**
  * @name resetPassword
- * @description Reset user password after valid OTP token verification
- * @access Protected (via verifyResetToken middleware)
  */
 async function resetPassword(req, res) {
   try {
@@ -271,53 +254,38 @@ async function resetPassword(req, res) {
     const sessionToken = req.cookies.resetSession;
 
     if (!sessionToken) {
-      return res
-        .status(401)
-        .json({ success: false, message: "Pehle OTP verify karein!" });
+      return res.status(401).json({ success: false, message: "Pehle OTP verify karein!" });
     }
 
     const decoded = jwt.verify(sessionToken, process.env.JWT_SECRET);
     if (!decoded.isVerified) {
-      return res
-        .status(403)
-        .json({ success: false, message: "OTP verification zaroori hai!" });
+      return res.status(403).json({ success: false, message: "OTP verification zaroori hai!" });
     }
 
     if (!newPassword || newPassword.length < 6) {
-      return res
-        .status(400)
-        .json({
-          success: false,
-          message: "Password kam se kam 6 characters ka hona chahiye.",
-        });
+      return res.status(400).json({
+        success: false,
+        message: "Password kam se kam 6 characters ka hona chahiye.",
+      });
     }
 
-    // Cookie se direct user mila
     const user = await userModel.findOne({ email: decoded.email });
     if (!user) {
-      return res
-        .status(404)
-        .json({ success: false, message: "User nahi mila!" });
+      return res.status(404).json({ success: false, message: "User nahi mila!" });
     }
 
-    // Password update
     user.password = newPassword;
     await user.save();
 
-    // 1. Temporary reset session cookie hatao
-    res.clearCookie("resetSession");
+    // 1. Clear temporary reset session
+    res.clearCookie("resetSession", getCookieOptions());
 
-    // 2. Direct user ko login karao (Permanent Login Token)
+    // 2. Direct user login
     const authToken = jwt.sign({ userId: user._id }, process.env.JWT_SECRET, {
       expiresIn: "1d",
     });
 
-    res.cookie("token", authToken, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
-      maxAge: 24 * 60 * 60 * 1000,
-    });
+    res.cookie("token", authToken, getCookieOptions(24 * 60 * 60 * 1000));
 
     return res.status(200).json({
       success: true,
@@ -327,12 +295,11 @@ async function resetPassword(req, res) {
         _id: user._id,
         name: user.name,
         email: user.email,
+        systemUser: user.systemUser,
       },
     });
   } catch (error) {
-    return res
-      .status(500)
-      .json({ success: false, message: "Server error", error: error.message });
+    return res.status(500).json({ success: false, message: "Server error", error: error.message });
   }
 }
 
@@ -344,10 +311,11 @@ async function getMe(req, res) {
       _id: user._id,
       email: user.email,
       name: user.name,
-      systemUser: user.systemUser, // 👈 add karo
+      systemUser: user.systemUser,
     },
   });
 }
+
 module.exports = {
   userRegisterController,
   userLoginController,
