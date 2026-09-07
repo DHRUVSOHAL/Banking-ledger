@@ -22,7 +22,7 @@ export default function DepositButton({ accountId, onDeposited }) {
     setLoading(true);
     try {
       const idempotencyKey = crypto.randomUUID();
-      const res = await depositService.createRequest({
+      const res = await depositService.createDepositRequest({
         accountId,
         amount: parsedAmount,
         idempotencyKey,
