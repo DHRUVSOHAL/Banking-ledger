@@ -4,9 +4,11 @@ import ProtectedRoute from './components/ProtectedRoute';
 import Home from './features/auth/pages/Home';
 import ForgotPasswordPage from './features/auth/pages/ForgotPasswordPage';
 import Dashboard from './features/dashboard/pages/Dashboard';
-import AccountHistory from './features/dashboard/pages/AccountHistory'; // 👈 Account history component
+import AccountHistory from './features/dashboard/pages/AccountHistory';
 import Transfer from './features/transfer/pages/Transfer';
 import PendingDeposits from './features/admin/pages/PendingDeposits';
+import ApprovedDeposits from './features/admin/pages/ApprovedDeposits'; // 👈 Naya page import
+import RejectedDeposits from './features/admin/pages/RejectedDeposits'; // 👈 Naya page import
 
 export default function App() {
   return (
@@ -42,11 +44,29 @@ export default function App() {
               </ProtectedRoute>
             }
           />
+
+          {/* Admin Routes */}
           <Route
             path="/admin/deposits"
             element={
               <ProtectedRoute>
                 <PendingDeposits />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/admin/approved"
+            element={
+              <ProtectedRoute>
+                <ApprovedDeposits />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/admin/rejected"
+            element={
+              <ProtectedRoute>
+                <RejectedDeposits />
               </ProtectedRoute>
             }
           />

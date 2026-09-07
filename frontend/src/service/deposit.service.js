@@ -1,14 +1,15 @@
-import api from "./api";
+import api from './api';
 
 export const depositService = {
-  createRequest: ({ accountId, amount, idempotencyKey }) =>
-    api.post("/deposit-requests", { accountId, amount, idempotencyKey }),
+  createDepositRequest: (data) => api.post('/deposits', data),
+  getMyDepositRequests: () => api.get('/deposits/my'),
 
-  getMyRequests: () => api.get("/deposit-requests/my"),
+  // Admin audit lists
+  getPendingRequests: () => api.get('/deposits/pending'),
+  getApprovedRequests: () => api.get('/deposits/approved'),
+  getRejectedRequests: () => api.get('/deposits/rejected'),
 
-  getPendingRequests: () => api.get("/deposit-requests/pending"),
-
-  approveRequest: (requestId) => api.post(`/deposit-requests/${requestId}/approve`),
-
-  rejectRequest: (requestId) => api.post(`/deposit-requests/${requestId}/reject`),
+  // Admin actions (matching router POST format)
+  approveRequest: (requestId) => api.post(`/deposits/${requestId}/approve`),
+  rejectRequest: (requestId) => api.post(`/deposits/${requestId}/reject`),
 };
