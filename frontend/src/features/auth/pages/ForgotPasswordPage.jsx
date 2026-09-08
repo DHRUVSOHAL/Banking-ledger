@@ -21,7 +21,7 @@ export default function ForgotPasswordPage() {
     setLoading(true);
     try {
       // ✅ Sahi backend endpoint call
-      const res = await api.post("/auth/forget-password", { email });
+      const res = await api.post("/api/auth/forget-password", { email });
       setMessage(res.data.message || "OTP sent successfully!");
       setStep(2);
     } catch (err) {
@@ -38,7 +38,7 @@ export default function ForgotPasswordPage() {
     setMessage("");
     setLoading(true);
     try {
-      const res = await api.post("/auth/verify-otp", { otp });
+      const res = await api.post("/api/auth/verify-otp", { otp });
       setMessage(res.data.message || "OTP verified successfully!");
       setStep(3);
     } catch (err) {
@@ -55,7 +55,7 @@ export default function ForgotPasswordPage() {
     setMessage("");
     setLoading(true);
     try {
-      const res = await api.post("/auth/reset-password", { newPassword });
+      const res = await api.post("/api/auth/reset-password", { newPassword });
       setMessage(res.data.message || "Password updated!");
       
       // Direct dashboard navigation with fresh session
