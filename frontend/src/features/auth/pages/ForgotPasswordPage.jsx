@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
-import api from "../../../service/api"; // 👈 Apne standard API client ko import karo
+import { authService } from "../../../services/auth.service"; // ✅ Correct relative path
 
 export default function ForgotPasswordPage() {
   const navigate = useNavigate();
@@ -20,8 +20,7 @@ export default function ForgotPasswordPage() {
     setMessage("");
     setLoading(true);
     try {
-      // ✅ Sahi backend endpoint call
-      const res = await api.post("/api/auth/forget-password", { email });
+      const res = await authService.forgetPassword(email);
       setMessage(res.data.message || "OTP sent successfully!");
       setStep(2);
     } catch (err) {
@@ -38,7 +37,7 @@ export default function ForgotPasswordPage() {
     setMessage("");
     setLoading(true);
     try {
-      const res = await api.post("/api/auth/verify-otp", { otp });
+      const res = await authService.verifyOtp({ otp });
       setMessage(res.data.message || "OTP verified successfully!");
       setStep(3);
     } catch (err) {
@@ -55,10 +54,9 @@ export default function ForgotPasswordPage() {
     setMessage("");
     setLoading(true);
     try {
-      const res = await api.post("/api/auth/reset-password", { newPassword });
+      const res = await authService.resetPassword(newPassword);
       setMessage(res.data.message || "Password updated!");
       
-      // Direct dashboard navigation with fresh session
       navigate("/dashboard");
       window.location.reload();
     } catch (err) {
