@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
+import api from "../../../service/api"; // 👈 Apne standard API client ko import karo
 
 export default function ForgotPasswordPage() {
   const navigate = useNavigate();
@@ -16,21 +17,15 @@ export default function ForgotPasswordPage() {
   async function handleSendOTP(e) {
     e.preventDefault();
     setError("");
+    setMessage("");
     setLoading(true);
     try {
-      const res = await fetch("https://banking-ledger-frontend.onrender.com/api/auth/forget-password", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({ email }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.message || "Failed to send OTP");
-
-      setMessage(data.message);
+      // ✅ Sahi backend endpoint call
+      const res = await api.post("/auth/forget-password", { email });
+      setMessage(res.data.message || "OTP sent successfully!");
       setStep(2);
     } catch (err) {
-      setError(err.message);
+      setError(err.response?.data?.message || err.message || "Failed to send OTP");
     } finally {
       setLoading(false);
     }
@@ -40,21 +35,14 @@ export default function ForgotPasswordPage() {
   async function handleVerifyOTP(e) {
     e.preventDefault();
     setError("");
+    setMessage("");
     setLoading(true);
     try {
-      const res = await fetch("https://banking-ledger-frontend.onrender.com/api/auth/verify-otp", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({ otp }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.message || "OTP verification failed");
-
-      setMessage(data.message);
+      const res = await api.post("/auth/verify-otp", { otp });
+      setMessage(res.data.message || "OTP verified successfully!");
       setStep(3);
     } catch (err) {
-      setError(err.message);
+      setError(err.response?.data?.message || err.message || "OTP verification failed");
     } finally {
       setLoading(false);
     }
@@ -64,22 +52,17 @@ export default function ForgotPasswordPage() {
   async function handleResetPassword(e) {
     e.preventDefault();
     setError("");
+    setMessage("");
     setLoading(true);
     try {
-      const res = await fetch("https://banking-ledger-frontend.onrender.com/api/auth/reset-password", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({ newPassword }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.message || "Password update failed");
-
-      // Password update hone ke baad backend cookie set kar chuka hai
+      const res = await api.post("/auth/reset-password", { newPassword });
+      setMessage(res.data.message || "Password updated!");
+      
+      // Direct dashboard navigation with fresh session
       navigate("/dashboard");
       window.location.reload();
     } catch (err) {
-      setError(err.message);
+      setError(err.response?.data?.message || err.message || "Password update failed");
     } finally {
       setLoading(false);
     }
