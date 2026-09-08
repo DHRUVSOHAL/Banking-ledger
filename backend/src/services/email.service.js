@@ -13,6 +13,7 @@ const transporter = nodemailer.createTransport({
     rejectUnauthorized: false, // Cloud containers par SSL handshake drop hone se bachata hai
   },
   connectionTimeout: 10000,
+  family:4
 });
 
 const sendEmail = async (to, subject, text, html) => {
