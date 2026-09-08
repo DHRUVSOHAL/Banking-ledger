@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
-import { authService } from "../../../services/auth.service"; // ✅ Correct relative path
+import { authService } from "../../../service/auth.service"; // ✅ Correct relative path
 
 export default function ForgotPasswordPage() {
   const navigate = useNavigate();
