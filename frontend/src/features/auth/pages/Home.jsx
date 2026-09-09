@@ -26,17 +26,13 @@ export default function Home() {
   };
 
   return (
-    <div className="flex w-full">
-      <div className="w-[30%] hidden md:block">
-        <Sidebar activeTab={activeTab} setActiveTab={setActiveTab} />
-      </div>
-
-      <div className="w-full md:hidden">
+    <div className="flex flex-col md:flex-row w-full min-h-screen">
+      <div className="w-full md:w-[30%]">
         <Sidebar activeTab={activeTab} setActiveTab={setActiveTab} />
       </div>
 
       <div
-        className="w-full md:w-[70%] min-h-screen flex items-center justify-center relative bg-cover bg-center"
+        className="w-full md:w-[70%] flex-1 flex items-center justify-center relative bg-cover bg-center"
         style={{
           background: 'linear-gradient(135deg, #0a0a0a 0%, #1a1a2e 50%, #16213e 100%)',
         }}
