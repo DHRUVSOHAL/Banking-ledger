@@ -30,7 +30,7 @@ app.use(cookieParser()) // cookie read karne ke liye
 
 app.use("/api/auth", authRouter)
 app.use("/api/accounts", accountRouter)
-app.use("/api/transections", transectionRouter)
+app.use("/api/transactions", transectionRouter)
 
 // Dhyaan rahe: Agar frontend service me '/deposit-requests' hai to yahan bhi wahi hona chahiye
 // Agar frontend me '/deposits' kar diya hai to '/api/deposits' perfectly chalega:
